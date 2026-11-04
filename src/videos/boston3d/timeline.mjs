@@ -56,10 +56,26 @@ export const jetParticleAt=(ageSeconds,headMeters,launchHeightMeters,liftMetersP
 };
 export const shotAt = (frame)=>SHOTS.find(s=>frame>=s.a&&frame<s.b) || SHOTS[SHOTS.length-1];
 export const shotProgress=(frame)=>{const s=shotAt(frame);return clamp((frame-s.a)/(s.b-s.a));};
+// The tank's torn street-facing wall is at this world-space position.
+export const TANK_BREACH=Object.freeze({x:7.3,z:-12});
+// The pressure-driven distance is projected down the street; the remainder
+// goes into spreading sideways and viscous loss as the syrup fans out.
+const STREET_PROJECTION=.58;
+export const floodSpreadAt=(frame)=>{
+  if(frame<115)return {left:-7.6,right:7.6,trail:37};
+  const travel=surgeDistanceAt(frame)*STREET_PROJECTION;
+  const centerX=TANK_BREACH.x*(1-smooth(travel/19));
+  const halfWidth=Math.min(7.8,.48+travel*.44);
+  return {
+    left:Math.max(-7.6,centerX-halfWidth),
+    right:Math.min(7.6,centerX+halfWidth),
+    trail:Math.min(40,4+travel*1.05)
+  };
+};
 export const floodFrontAt=(frame)=>{
-  if(frame<115) return -13+frame*0.42;
-  if(frame<688) return -35;
-  return clamp(-35+surgeDistanceAt(frame),-35,33);
+  if(frame<115)return -13+frame*0.42;
+  if(frame<688)return -35;
+  return clamp(TANK_BREACH.z+surgeDistanceAt(frame)*STREET_PROJECTION,TANK_BREACH.z,33);
 };
 // The surge has a rolling, irregular leading lip and a variable crest height.
 // Used by both the top water surface and the curved front curtain.
