@@ -132,15 +132,28 @@ test('newborn molasses stream cannot outrun its own flood crest',()=>{
 
 test('the source remains submerged as the tank drains over the rupture shot',()=>{
   assert.equal(typeof physics.tankLiquidLevelAt,'function');
-  const levels=[688,740,880,1030].map(f=>physics.tankLiquidLevelAt(f));
-  assert.ok(levels[0]>levels[1]&&levels[1]>levels[2],
-    'liquid level does not gradually fall as it leaves the broken tank');
-  assert.ok(levels.every(h=>h>5.25&&h<9),
-    'molasses is empty or hidden below the visible break');
-  for(const frame of [688,740,880,1030]){
+  const levels=[688,790,880,950,1029,1030].map(f=>physics.tankLiquidLevelAt(f));
+  assert.ok(levels[0]>7 && levels[0]<9,'tank does not begin mostly filled');
+  assert.ok(levels[1]>4.5&&levels[1]<6.5,'tank has not visibly drained during rupture');
+  assert.ok(levels[2]>2&&levels[2]<4,'tank still looks full during the street rush');
+  assert.ok(levels[3]<2.5&&levels[4]<.5&&levels[5]<=.25,
+    'the tank never reaches a nearly empty state');
+  assert.ok(levels.every((h,i)=>i===0||h<=levels[i-1]),'molasses level rises while draining');
+  for(const frame of [688,790,880,950,1029]){
     assert.ok(physics.outflowSheetPointAt(frame,0).y<physics.tankLiquidLevelAt(frame),
       'the flow source appears above the remaining syrup surface');
+    assert.ok(physics.outflowSheetPointAt(frame,.2).y<=physics.tankLiquidLevelAt(frame),
+      'the outlet remains high after the liquid surface has fallen');
   }
+});
+
+test('the discharge thins as the source reservoir empties',()=>{
+  const diameter=(f)=>physics.outflowCrossSectionAt(f,.5,0).x-
+    physics.outflowCrossSectionAt(f,.5,Math.PI).x;
+  const strong=diameter(750),late=diameter(940),last=diameter(1029);
+  assert.ok(strong>1.3,'the early tank discharge is not a substantial liquid stream');
+  assert.ok(late<strong*.75,'the drain flow stays thick when most syrup is gone');
+  assert.ok(last<late*.45,'the outlet is still producing a full-width flow when empty');
 });
 
 test('the spoon geometry has a recessed bowl instead of a flat convex disc',()=>{
