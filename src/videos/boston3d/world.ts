@@ -6,7 +6,7 @@ import {twoTone, TONE, CHAR, untone} from '../../../templates/bridge/shade';
 import {cardShade} from '../../../templates/bridge/cardshade';
 import {LIGHTS, LOOK} from '../../../templates/bridge/lights';
 import {cloudHD} from '../../../templates/bridge/paint';
-import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, surgeSpeedAt, jetParticleAt, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, TANK_BREACH, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -303,6 +303,7 @@ class Flood {
     const active=f<115||(f>=688&&f<1450);
     this.root.visible=active;if(!active)return;
     const nx=34,nz=43,nf=7;
+    const spread=floodSpreadAt(f);
     // Visual wave energy comes from the pressure-head surge and viscous deceleration.
     // The cold-open previews the later burst, hence its remapped time.
     const speed=surgeSpeedAt(f<115?700+f:f);
@@ -320,8 +321,8 @@ class Flood {
       return Math.max(.07,.13+brow+wake+eddies);
     };
     for(let j=0;j<=nz;j++)for(let i=0;i<=nx;i++){
-      const x=-7.6+15.2*i/nx,lip=waveProfileAt(f,x).front;
-      const z=lip-37+37*j/nz,y=surface(x,z),idx=j*(nx+1)+i;
+      const x=spread.left+(spread.right-spread.left)*i/nx,lip=waveProfileAt(f,x).front;
+      const z=lip-spread.trail+spread.trail*j/nz,y=surface(x,z),idx=j*(nx+1)+i;
       a.setXYZ(idx,x,y,z);
       const light=clamp(.05+y*.18+.13*Math.sin(x*.91+z*.34+f*.085),.02,.92);
       const ribbon=.5+.5*Math.cos(x*2.8+z*.55-f*.13);
@@ -331,7 +332,7 @@ class Flood {
     const b=this.frontGeom.getAttribute('position') as THREE.BufferAttribute;
     const bColor=this.frontGeom.getAttribute('color') as THREE.BufferAttribute;
     for(let i=0;i<=nx;i++){
-      const x=-7.6+15.2*i/nx,lip=waveProfileAt(f,x).front,crest=surface(x,lip);
+      const x=spread.left+(spread.right-spread.left)*i/nx,lip=waveProfileAt(f,x).front,crest=surface(x,lip);
       for(let j=0;j<=nf;j++){
         const t=j/nf,idx=i*(nf+1)+j;
         const curl=(1.04+.42*energy)*Math.sin(Math.PI*t)*(1+.18*Math.sin(x*.76+f*.065));
@@ -346,15 +347,15 @@ class Flood {
     }
     b.needsUpdate=true;bColor.needsUpdate=true;this.frontGeom.computeVertexNormals();
     for(let i=0;i<this.glints.length;i++){
-      const p=this.glints[i],x=-7+hash(i*7)*14;
-      const z=waveProfileAt(f,x).front-1.6-hash(i*19)*18;
+      const p=this.glints[i],x=spread.left+(spread.right-spread.left)*hash(i*7);
+      const z=waveProfileAt(f,x).front-1.6-hash(i*19)*Math.min(18,spread.trail*.75);
       const h=surface(x,z);
       p.position.set(x,h+.015+Math.sin(f*.16+i)*.035,z);
       p.scale.set(1.25+.5*energy+.5*hash(i),.18,.42+hash(i));
       p.rotation.y=hash(i*17)*Math.PI;
     }
     for(let i=0;i<this.foam.length;i++){
-      const o=this.foam[i],x=-7.25+14.5*(i+.5)/this.foam.length;
+      const o=this.foam[i],x=spread.left+(spread.right-spread.left)*(i+.5)/this.foam.length;
       const lip=waveProfileAt(f,x).front;
       const y=surface(x,lip);
       const wiggle=Math.sin(f*.17+i*1.73),q=hash(i*17);
@@ -364,7 +365,7 @@ class Flood {
       o.rotation.set(0,-.28+wiggle*.15,wiggle*.23);
     }
     for(let i=0;i<this.droplets.length;i++){
-      const o=this.droplets[i],x=-7.0+hash(i*19)*14;
+      const o=this.droplets[i],x=spread.left+(spread.right-spread.left)*hash(i*19);
       const lip=waveProfileAt(f,x).front;
       const phase=(f*.037+hash(i*37)*2.1)%2.1;
       const jet=jetParticleAt(phase,.5+energy*1.3,.05,2.6*energy+hash(i*43)*2);
@@ -659,8 +660,8 @@ export class World {
       // Breakaway syrup jets start at the breached near-side wall, accelerate
       // from pressure head, and fan into the street as drag slows their travel.
       const yaw=-.62+hash(i*23)*1.34;
-      drop.position.set(-3.7+Math.sin(yaw)*jet.forward,jet.height,
-        4.0+Math.cos(yaw)*jet.forward);
+      drop.position.set(TANK_BREACH.x-this.tank.position.x+Math.sin(yaw)*jet.forward,jet.height,
+        TANK_BREACH.z-this.tank.position.z+Math.cos(yaw)*jet.forward);
       drop.scale.setScalar(.55+.65*hash(i*13));
     }
     for(let i=0;i<this.drips.length;i++){
