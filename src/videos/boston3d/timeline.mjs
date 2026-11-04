@@ -58,22 +58,27 @@ export const jetParticleAt=(ageSeconds,headMeters,launchHeightMeters,liftMetersP
 const debrisHash=(n)=>{const v=Math.sin(n*74.17+19.1)*43758.5453;return v-Math.floor(v);};
 export const fragmentFlightAt=(frame,index)=>{
   const theta=index*2.3999632297;
+  const streetward=index%4!==3;
   const t=Math.max(0,(frame-688-index*.25)/FPS);
-  const y0=3.1+debrisHash(index*7+1)*8.7;
-  const vy=5.5+debrisHash(index*13+2)*4.5;
+  const y0=streetward?3+debrisHash(index*7+1)*3.3:6+debrisHash(index*7+1)*6;
+  const vy=streetward?3.6+debrisHash(index*13+2)*2.7:6+debrisHash(index*13+2)*3.5;
   const contactY=.32;
   const landTime=(vy+Math.sqrt(vy*vy+2*GRAVITY_M_S2*(y0-contactY)))/GRAVITY_M_S2;
-  const fly=Math.min(t,landTime);
-  const velocity=3.9+debrisHash(index*11+3)*4.1;
-  const travel=velocity*fly/(1+.14*fly);
-  const radius=4.6+debrisHash(index*5+4)*1.0;
+  const fly=Math.min(t,landTime),u=clamp(fly/landTime);
+  const easing=1-Math.pow(1-u,1.55);
+  const startX=Math.sin(theta)*5.2,startZ=Math.cos(theta)*5.2;
+  const targetX=streetward?-16.5+11*debrisHash(index*13+27):
+    Math.sin(theta)*(12+debrisHash(index+31)*5);
+  const targetZ=streetward?14+14*debrisHash(index*19+33):
+    Math.cos(theta)*(11+debrisHash(index+37)*5);
   return {
-    x:Math.sin(theta)*(radius+travel),
+    x:startX+(targetX-startX)*easing,
     y:t>=landTime?contactY:y0+vy*t-.5*GRAVITY_M_S2*t*t,
-    z:Math.cos(theta)*(radius+.88*travel),
-    rx:Math.min(fly,landTime)*(1.2+debrisHash(index*3+5)),
-    ry:theta+Math.min(fly,landTime)*(.55+debrisHash(index+9)),
-    rz:Math.min(fly,landTime)*(.9+debrisHash(index+7)),
+    z:startZ+(targetZ-startZ)*easing,
+    rx:fly*(1.2+debrisHash(index*3+5)),
+    ry:theta+fly*(.55+debrisHash(index+9)),
+    rz:fly*(.9+debrisHash(index+7)),
+    impactAge:t-landTime,
     landed:t>=landTime
   };
 };
@@ -86,6 +91,23 @@ export const outflowSheetPointAt=(frame,fraction)=>{
     y:.17+4.5*(1-smooth(t))+.11*Math.sin(Math.PI*t)*Math.sin(frame*.16),
     z:TANK_BREACH.z+7.1*t
   };
+};
+// An oval, rounded cross-section gives the tank discharge actual volume.
+export const outflowCrossSectionAt=(frame,fraction,angle)=>{
+  const center=outflowSheetPointAt(frame,fraction);
+  const radius=(.46+.54*smooth(fraction))*smooth((frame-688)/18);
+  return {
+    x:center.x+radius*Math.cos(angle),
+    y:center.y+radius*.62*Math.sin(angle),
+    z:center.z+.13*Math.sin(angle+frame*.15)*Math.sin(Math.PI*clamp(fraction))
+  };
+};
+// Slow, visible string of syrup forming at the near rim of the tilted spoon.
+export const spoonDripAt=(frame)=>{
+  const phase=((frame-115)%120+120)%120/120;
+  const length=.35+2.5*smooth(clamp(phase/.85));
+  const topY=3.48;
+  return {x:-.62,z:-1.9,topY,length,dropY:Math.max(.20,topY-length-.16)};
 };
 // Concave inner surface of a real spoon, from center (low) to lip (high).
 export const spoonBowlHeightAt=(radius)=>-.09+.33*Math.pow(clamp(radius),2);
@@ -118,7 +140,8 @@ export const floodFrontAt=(frame)=>{
 export const waveProfileAt=(frame,x)=>{
   const front=floodFrontAt(frame)+0.72*Math.sin(x*.5+frame*.046)+0.30*Math.sin(x*1.31-frame*.029);
   const lateral=Math.max(.2,1-.32*Math.pow(Math.abs(x)/7.8,2));
-  const height=Math.max(1.7,(.95+2.85*lateral)+.55*Math.sin(x*.74-frame*.034)+.28*Math.cos(x*1.48+frame*.058));
+  const height=Math.max(1.55,1.35+2.35*lateral+
+    1.04*Math.sin(x*.83-frame*.073)+.76*Math.sin(x*1.9+frame*.13));
   return {front,height};
 };
 // The face pushes out most strongly near its upper third, then folds back into
