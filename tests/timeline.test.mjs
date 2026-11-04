@@ -142,3 +142,45 @@ test('wave face curls forward near the crest and rejoins the surface',()=>{
   assert.ok(Math.abs(start.forward)<.00001&&Math.abs(end.forward)<.00001,
     'breaking face does not connect to the road and top sheet');
 });
+
+test('steel debris visibly lands within the street rather than vanishing behind buildings',()=>{
+  const onRoad=[];
+  for(let i=0;i<14;i++){
+    const hit=physics.fragmentFlightAt(790,i);
+    if(hit.landed && 11+hit.x>-7 && 11+hit.x<7 && -16+hit.z>-10 && -16+hit.z<16)
+      onRoad.push(i);
+  }
+  assert.ok(onRoad.length>=7,'fewer than seven fragments have landed in the visible road by the rush cut');
+});
+
+test('tank outflow has a rounded, thick liquid cross-section rather than a flat triangular sheet',()=>{
+  assert.equal(typeof physics.outflowCrossSectionAt,'function','missing tubular syrup stream');
+  const a=physics.outflowCrossSectionAt(725,.5,0);
+  const b=physics.outflowCrossSectionAt(725,.5,Math.PI/2);
+  const c=physics.outflowCrossSectionAt(725,.5,Math.PI);
+  assert.ok(a.x>c.x+.6,'outflow has no horizontal thickness');
+  assert.ok(b.y>a.y+.18,'outflow has no vertical volume');
+  assert.ok(Math.abs(a.z-b.z)<.5,'cross-section is scattered rather than a continuous stream');
+});
+
+test('molasses visibly stretches off the spoon lip before a drop breaks away',()=>{
+  assert.equal(typeof physics.spoonDripAt,'function','missing persistent spoon drip');
+  const drip=physics.spoonDripAt(190);
+  assert.ok(drip.length>1.2,'the slow drip is too short to read on the spoon frame');
+  assert.ok(drip.x>-.9,'drip is hidden beneath the center of the spoon');
+  assert.ok(drip.z>-2.5,'drip sits behind the bowl');
+  assert.ok(drip.dropY<3.1 && drip.dropY>.2,'droplet is not hanging visibly below the rim');
+});
+
+test('the deadly surge breaks into uneven high and low crests rather than a smooth wall',()=>{
+  const heights=[-7,-4,-1,2,5,7].map(x=>physics.waveProfileAt(820,x).height);
+  assert.ok(Math.max(...heights)-Math.min(...heights)>2,
+    'rolling wave remains too uniformly rounded');
+});
+
+test('debris exposes a finite impact age for a brief visible landing splash',()=>{
+  const landed=physics.fragmentFlightAt(790,0);
+  assert.ok(Number.isFinite(landed.impactAge),'missing impact timing');
+  assert.ok(landed.impactAge>=0,'street debris is counted as landed before impact');
+  assert.ok(physics.fragmentFlightAt(688,0).impactAge<0,'impact begins at the explosion');
+});
