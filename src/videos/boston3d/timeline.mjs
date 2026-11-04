@@ -82,15 +82,19 @@ export const fragmentFlightAt=(frame,index)=>{
     landed:t>=landTime
   };
 };
-// The tank remains partly filled after the shell opens. The surface drops as
-// the pressurized reservoir empties, but stays above the rupture outlet.
-export const tankLiquidLevelAt=(frame)=>7.8-2.2*smooth((frame-688)/500);
+// A finite reservoir visibly drains during the rupture and rush shots.
+// As head pressure falls, the remaining flow slows to a trickle and ends.
+export const tankLiquidLevelAt=(frame)=>
+  .20+7.6*Math.pow(1-clamp((frame-688)/342),1.1);
 // The source is *inside* the steel shell, not a tube suspended beside it.
 // It crosses the torn wall and reaches only as far as the advancing flood.
 export const outflowSheetPointAt=(frame,fraction)=>{
   const t=clamp(fraction);
-  const source={x:9.05,y:5.15,z:-13.45};
-  const mouth={x:TANK_BREACH.x,y:4.67,z:TANK_BREACH.z};
+  const level=tankLiquidLevelAt(frame);
+  // The exposed breach extends to the tank base: the active outlet moves
+  // downward as the syrup surface drops instead of hanging in empty space.
+  const source={x:9.05,y:Math.min(5.15,Math.max(.11,level-.16)),z:-13.45};
+  const mouth={x:TANK_BREACH.x,y:Math.min(4.67,Math.max(.09,level-.26)),z:TANK_BREACH.z};
   if(t<=.2){
     const u=t/.2;
     return {x:source.x+(mouth.x-source.x)*u,
@@ -114,7 +118,9 @@ export const outflowSheetPointAt=(frame,fraction)=>{
 // An oval, rounded cross-section gives the tank discharge actual volume.
 export const outflowCrossSectionAt=(frame,fraction,angle)=>{
   const center=outflowSheetPointAt(frame,fraction);
-  const radius=(.82+.88*smooth(fraction))*smooth((frame-688)/18);
+  const remaining=clamp((tankLiquidLevelAt(frame)-.20)/7.6);
+  const width=.045+.955*Math.pow(remaining,.8);
+  const radius=(.82+.88*smooth(fraction))*smooth((frame-688)/18)*width;
   return {
     x:center.x+radius*Math.cos(angle),
     y:center.y+radius*.62*Math.sin(angle),
