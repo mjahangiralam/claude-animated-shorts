@@ -394,8 +394,8 @@ export class World {
     this.town.visible=shot.place==='town';
     this.macro.visible=shot.place==='macro';
     this.plans.visible=shot.place==='blueprint';
-    cam.position.set(...info.pos);cam.fov=info.fov;
-    cam.lookAt(new THREE.Vector3(...info.look));cam.rotateZ(info.roll);cam.updateProjectionMatrix();
+    cam.position.set(info.pos[0],info.pos[1],info.pos[2]);cam.fov=info.fov;
+    cam.lookAt(new THREE.Vector3(info.look[0],info.look[1],info.look[2]));cam.rotateZ(info.roll);cam.updateProjectionMatrix();
     scene.fog=this.baseFog;
     const golden=shot.light==='gold';
     this.sun.color.set(golden?'#ffc08a':'#fff1d5');
@@ -436,6 +436,6 @@ export class World {
     this.tinyTown.visible=shot.id==='physics'&&p>.42;
     this.tinyTown.scale.setScalar(.18+.2*smooth((p-.4)/.6));
     this.fracture.scale.set(1,1,.3+.7*smooth((f-1640)/100));
-    return new THREE.Vector3(...info.look);
+    return new THREE.Vector3(info.look[0],info.look[1],info.look[2]);
   }
 }
