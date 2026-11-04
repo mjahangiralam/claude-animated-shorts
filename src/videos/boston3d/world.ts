@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {Pen, bodyFront, townsfolk} from './toon';
 import {NOINK} from './ink';
-import {cameraAt, floodFrontAt, shotAt, shotProgress, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -78,6 +78,22 @@ function woodTexture(){
     }
   });t.repeat.set(3,3);return t;
 }
+function cloudTexture(){
+  return canvasTexture(640,256,g=>{
+    g.clearRect(0,0,640,256);
+    for(let i=0;i<19;i++){
+      const x=35+i*31+hash(i*13)*24;
+      const y=120+Math.sin(i*.83)*19-hash(i*11)*28;
+      const rx=75+hash(i*23)*48,ry=31+hash(i*5)*21;
+      g.save();g.translate(x,y);g.scale(rx,ry);
+      const blur=g.createRadialGradient(0,0,.04,0,0,1);
+      blur.addColorStop(0,'rgba(255,252,240,.63)');
+      blur.addColorStop(.45,'rgba(255,247,232,.42)');
+      blur.addColorStop(1,'rgba(255,245,228,0)');
+      g.fillStyle=blur;g.beginPath();g.arc(0,0,1,0,Math.PI*2);g.fill();g.restore();
+    }
+  });
+}
 function cylinder(root:THREE.Object3D,r:number,h:number,pos:[number,number,number],material:THREE.Material,segments=44){
   const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,segments),material);
   m.position.set(...pos);m.castShadow=true;m.receiveShadow=true;root.add(m);return m;
@@ -107,6 +123,15 @@ function house(side:number,z:number,index:number,firehouse=false){
     box(root,[0,5.8,d/2+.15],[6.3,.55,.3],M.sill,true);
     const arch=new THREE.Mesh(new THREE.TorusGeometry(2.85,.2,10,26,Math.PI),M.sill);
     arch.rotation.z=Math.PI;arch.position.set(0,3,d/2+.39);root.add(arch);
+    const label=canvasTexture(560,120,g=>{
+      g.fillStyle='#4a302d';g.fillRect(0,0,560,120);
+      g.strokeStyle='#d5b78a';g.lineWidth=9;g.strokeRect(9,9,542,102);
+      g.fillStyle='#f5d9ae';g.textAlign='center';g.textBaseline='middle';
+      g.font='bold 58px Georgia';g.fillText('FIRE HOUSE',280,65);
+    });
+    const sign=new THREE.Mesh(new THREE.PlaneGeometry(5.8,1.15),
+      new THREE.MeshBasicMaterial({map:label,side:THREE.DoubleSide}));
+    sign.position.set(0,7.55,d/2+.37);root.add(sign);
   }else{
     box(root,[0,1.35,d/2+.38],[1.8,2.55,.09],mat('#584b49'));
     box(root,[0,2.65,d/2+.42],[2.22,.21,.32],M.sill);
@@ -153,10 +178,10 @@ class Toon {
     this.cv=document.createElement('canvas');this.cv.width=420;this.cv.height=700;
     this.tex=new THREE.CanvasTexture(this.cv);this.tex.colorSpace=THREE.SRGBColorSpace;
     this.tex.anisotropy=4;
-    const geo=new THREE.PlaneGeometry(1.56,2.60);
+    const geo=new THREE.PlaneGeometry(2.10,3.52);
     const material=new THREE.MeshLambertMaterial({map:this.tex,alphaTest:.38,side:THREE.DoubleSide,transparent:true,depthWrite:true});
     this.mesh=new THREE.Mesh(geo,material);
-    this.mesh.layers.set(NOINK);this.mesh.position.set(home[0],1.31,home[2]);this.mesh.castShadow=false;
+    this.mesh.layers.set(NOINK);this.mesh.position.set(home[0],1.77,home[2]);this.mesh.castShadow=false;
     parent.add(this.mesh);
     const s=new THREE.Mesh(new THREE.CircleGeometry(.5,30),new THREE.MeshBasicMaterial({color:'#33202a',transparent:true,opacity:.2,depthWrite:false}));
     s.rotation.x=-Math.PI/2;s.scale.set(1,.5,1);s.position.set(home[0],.038,home[2]);parent.add(s);this.shadow=s;
@@ -170,7 +195,7 @@ class Toon {
     const run=panic&&f>682&&f<1170;
     const x=this.home.x+(run?Math.min(9,(f-682)*.037)*((this.seed%2)?-1:1):.25*Math.sin(f*.013+this.seed));
     const z=this.home.z+(run?Math.min(35,(f-682)*.11):.14*Math.cos(f*.015+this.seed));
-    this.mesh.position.set(x,1.31+(run?Math.sin(f*.18)*.06:0),z);
+    this.mesh.position.set(x,1.77+(run?Math.sin(f*.18)*.08:0),z);
     this.shadow.position.set(x,.038,z);
     this.mesh.rotation.y=Math.atan2(cam.position.x-x,cam.position.z-z);
     if(this.last!==step){
@@ -199,15 +224,23 @@ class Flood {
       ids.push(n,n+1,n+nx+1,n+1,n+nx+2,n+nx+1);
     }
     this.geom=new THREE.BufferGeometry();this.geom.setAttribute('position',new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage));
+    this.geom.setAttribute('color',new THREE.BufferAttribute(new Float32Array(pos.length),3).setUsage(THREE.DynamicDrawUsage));
     this.geom.setIndex(ids);
-    const surf=new THREE.Mesh(this.geom,M.molasses);
+    const surf=new THREE.Mesh(this.geom,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.30,metalness:.06,side:THREE.DoubleSide}));
     surf.castShadow=true;surf.receiveShadow=true;this.root.add(surf);
+    // Seven curved horizontal bands form a rounded, rolling liquid face.
+    // The old two-row sheet was a rectangular wall in every camera angle.
+    const nf=7;
     this.frontGeom=new THREE.BufferGeometry();
-    this.frontGeom.setAttribute('position',new THREE.BufferAttribute(new Float32Array((nx+1)*2*3),3).setUsage(THREE.DynamicDrawUsage));
+    this.frontGeom.setAttribute('position',new THREE.BufferAttribute(new Float32Array((nx+1)*(nf+1)*3),3).setUsage(THREE.DynamicDrawUsage));
+    this.frontGeom.setAttribute('color',new THREE.BufferAttribute(new Float32Array((nx+1)*(nf+1)*3),3).setUsage(THREE.DynamicDrawUsage));
     const frontIndex:number[]=[];
-    for(let x=0;x<nx;x++){const i=x*2;frontIndex.push(i,i+1,i+2,i+1,i+3,i+2);}
+    for(let x=0;x<nx;x++)for(let y=0;y<nf;y++){
+      const i=x*(nf+1)+y;
+      frontIndex.push(i,i+nf+1,i+1,i+1,i+nf+1,i+nf+2);
+    }
     this.frontGeom.setIndex(frontIndex);
-    const front=new THREE.Mesh(this.frontGeom,new THREE.MeshStandardMaterial({color:'#6c3024',roughness:.32,metalness:.08,side:THREE.DoubleSide}));
+    const front=new THREE.Mesh(this.frontGeom,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.28,metalness:.04,side:THREE.DoubleSide}));
     this.root.add(front);
     for(let k=0;k<39;k++){
       const o=orb(this.root,[0,0,0],.14+hash(k)*.13,k%4===0?M.highlight:mat('#bc6b3d',.42,.1),9,7);
@@ -218,29 +251,40 @@ class Flood {
   update(f:number){
     const active=f<115||(f>=676&&f<1450);
     this.root.visible=active;if(!active)return;
-    const front=floodFrontAt(f),nx=34,nz=43;
+    const nx=34,nz=43,nf=7;
     const a=this.geom.getAttribute('position') as THREE.BufferAttribute;
-    const cross=(x:number)=>Math.max(.2,1-.37*Math.pow(Math.abs(x)/7.8,3));
+    const aColor=this.geom.getAttribute('color') as THREE.BufferAttribute;
     const surface=(x:number,z:number)=>{
-      const back=front-z;
-      return Math.max(.08,.58+2.9*Math.exp(-Math.pow(back/5.4,2))
-        +.18*Math.sin(z*.85+f*.11+x*.23)+.11*Math.sin(z*1.7-f*.14+x*.6))*cross(x);
+      const p=waveProfileAt(f,x),back=Math.max(0,p.front-z);
+      return Math.max(.08,.18+p.height*Math.exp(-Math.pow(back/7.4,2))
+        +.19*Math.sin(z*.71+f*.11+x*.55)+.12*Math.cos(z*1.33-f*.14+x*.67));
     };
     for(let j=0;j<=nz;j++)for(let i=0;i<=nx;i++){
-      const x=-7.6+15.2*i/nx,z=front-37+37*j/nz;
-      a.setXYZ(j*(nx+1)+i,x,surface(x,z),z);
+      const x=-7.6+15.2*i/nx,lip=waveProfileAt(f,x).front;
+      const z=lip-37+37*j/nz,y=surface(x,z),idx=j*(nx+1)+i;
+      a.setXYZ(idx,x,y,z);
+      const light=clamp(.15+y*.18+.10*Math.sin(x*.91+z*.34+f*.085),.08,.97);
+      aColor.setXYZ(idx,.15+light*.37,.045+light*.21,.02+light*.10);
     }
-    a.needsUpdate=true;this.geom.computeVertexNormals();
+    a.needsUpdate=true;aColor.needsUpdate=true;this.geom.computeVertexNormals();
     const b=this.frontGeom.getAttribute('position') as THREE.BufferAttribute;
+    const bColor=this.frontGeom.getAttribute('color') as THREE.BufferAttribute;
     for(let i=0;i<=nx;i++){
-      const x=-7.6+15.2*i/nx;
-      b.setXYZ(i*2,x,.05,front+.015);
-      b.setXYZ(i*2+1,x,surface(x,front),front+.015);
+      const x=-7.6+15.2*i/nx,lip=waveProfileAt(f,x).front,crest=surface(x,lip);
+      for(let j=0;j<=nf;j++){
+        const t=j/nf,idx=i*(nf+1)+j;
+        const curl=.95*Math.sin(Math.PI*t)*(1+.18*Math.sin(x*.76+f*.065));
+        const ripple=.09*Math.sin(x*1.8+f*.11+t*8)*Math.sin(Math.PI*t);
+        b.setXYZ(idx,x,.04+(crest-.04)*t+ripple,lip+curl);
+        const streak=.08*Math.sin(x*1.15+t*19-f*.087);
+        const sheen=clamp(t*.63+streak,0,1);
+        bColor.setXYZ(idx,.17+sheen*.39,.05+sheen*.24,.025+sheen*.10);
+      }
     }
-    b.needsUpdate=true;this.frontGeom.computeVertexNormals();
+    b.needsUpdate=true;bColor.needsUpdate=true;this.frontGeom.computeVertexNormals();
     for(let i=0;i<this.glints.length;i++){
       const p=this.glints[i],x=-7+hash(i*7)*14;
-      const z=front-1.6-hash(i*19)*18;
+      const z=waveProfileAt(f,x).front-1.6-hash(i*19)*18;
       const h=surface(x,z);
       p.position.set(x,h+.015+Math.sin(f*.16+i)*.035,z);
       p.scale.set(1.5+.5*hash(i),.18,.42+hash(i));
@@ -253,11 +297,14 @@ export class World {
   town=new THREE.Group();
   macro=new THREE.Group();
   plans=new THREE.Group();
+  aftermath=new THREE.Group();
   private people:Toon[]=[];
   private flood:Flood;
   private tank=new THREE.Group();
   private tankShell:THREE.Mesh;
   private shellFragments:THREE.Mesh[]=[];
+  private tankBands=new THREE.Group();
+  private spray:THREE.Mesh[]=[];
   private paintMask:THREE.Mesh;
   private drips:THREE.Mesh[]=[];
   private firehouse:THREE.Group;
@@ -280,6 +327,7 @@ export class World {
     this.sun.shadow.bias=-.0001;
     this.root.add(this.sun,this.sun.target);
     this.root.add(this.town,this.macro,this.plans);
+    this.town.add(this.aftermath);
     const ground=new THREE.Mesh(new THREE.PlaneGeometry(240,280),mat('#8fa280'));
     ground.rotation.x=-Math.PI/2;ground.position.y=-.11;ground.receiveShadow=true;this.town.add(ground);
     const streetMat=mat('#fff7e9');streetMat.map=cobbleTexture();
@@ -289,7 +337,7 @@ export class World {
       box(this.town,[side*9,.15,-28],[2.6,.32,212],M.sidewalk);
       for(let z=-85;z<45;z+=13){
         const k=Math.round((z+85)/13)+(side+1)*31;
-        if(side===1&&z>=-23&&z<=-7)continue;
+        if((side===1&&z>=-23&&z<=-7)||(side===-1&&z===-7))continue;
         const h=house(side,z,k);
         this.town.add(h);
       }
@@ -319,23 +367,36 @@ export class World {
     this.tank.position.set(11.0,0,-16);this.town.add(this.tank);
     const tankMetal=new THREE.MeshStandardMaterial({color:'#617587',metalness:.54,roughness:.48,side:THREE.DoubleSide});
     this.tankShell=cylinder(this.tank,5.65,14.8,[0,7.45,0],tankMetal,72);
-    cylinder(this.tank,5.82,.4,[0,.3,0],M.trim);
-    cylinder(this.tank,5.82,.35,[0,14.95,0],M.trim);
+    this.tank.add(this.tankBands);
+    cylinder(this.tankBands,5.82,.4,[0,.3,0],M.trim);
+    cylinder(this.tankBands,5.82,.35,[0,14.95,0],M.trim);
     for(let y=.65;y<15;y+=1.55){
-      ring(this.tank,5.72,y,M.brass);
+      ring(this.tankBands,5.72,y,M.brass);
       for(let k=0;k<43;k++){
         const theta=k*2*Math.PI/43;
-        orb(this.tank,[Math.sin(theta)*5.8,y,Math.cos(theta)*5.8],.075,M.brass,8,5);
+        orb(this.tankBands,[Math.sin(theta)*5.8,y,Math.cos(theta)*5.8],.075,M.brass,8,5);
       }
     }
     for(let k=0;k<28;k++){
       const a=k*Math.PI*2/28;
-      box(this.tank,[5.68*Math.sin(a),7.5,5.68*Math.cos(a)],[.06,14.85,.07],M.trim);
+      box(this.tankBands,[5.68*Math.sin(a),7.5,5.68*Math.cos(a)],[.06,14.85,.07],M.trim);
     }
-    for(let k=0;k<5;k++){
-      const theta=-.75+(k-2)*.15;
-      const g=new THREE.Mesh(new THREE.CylinderGeometry(5.7,5.7,14.8,10,1,true,theta,.35),tankMetal.clone());
-      g.position.y=7.45;g.visible=false;this.tank.add(g);this.shellFragments.push(g);
+    // Twisted, differently sized panels. A few giant cylinder strips read as falling billboards.
+    for(let k=0;k<20;k++){
+      const w=1.4+hash(k*7)*1.9,h=2.1+hash(k*9)*4.1;
+      const geometry=new THREE.PlaneGeometry(w,h,3,4);
+      const verts=geometry.getAttribute('position') as THREE.BufferAttribute;
+      for(let j=0;j<verts.count;j++){
+        const x=verts.getX(j),y=verts.getY(j);
+        verts.setZ(j,.35*Math.sin(x*1.9+y*.8+k)+.22*Math.cos(y*2.2-k*.8));
+      }
+      geometry.computeVertexNormals();
+      const panel=new THREE.Mesh(geometry,tankMetal.clone());
+      panel.visible=false;panel.castShadow=true;this.tank.add(panel);this.shellFragments.push(panel);
+    }
+    for(let k=0;k<74;k++){
+      const particle=orb(this.tank,[0,0,0],.08+hash(k*3)*.20,k%4===0?M.highlight:M.molasses,7,5);
+      particle.castShadow=false;particle.visible=false;this.spray.push(particle);
     }
     this.paintMask=orb(this.tank,[4.8,4.1,2.7],.85,mat('#566779',.52,.45),18,12);
     this.paintMask.scale.set(.45,.9,.12);this.paintMask.visible=false;
@@ -348,10 +409,26 @@ export class World {
       const homes: [number,number,number][]=[[-3,0,13],[2.4,0,0],[-2.8,0,-12],[4,0,24],[-4.5,0,28],[1.4,0,-25],[0,0,34]];
       this.people.push(new Toon(this.town,i,homes[i]));
     }
+    const cloudMap=cloudTexture();
+    const cloudMaterial=new THREE.MeshBasicMaterial({map:cloudMap,transparent:true,opacity:.73,depthWrite:false,side:THREE.DoubleSide,fog:false});
     for(let i=0;i<7;i++){
-      orb(this.town,[-10+hash(i*3)*20,14+hash(i*9)*7,-47-i*5],1.4+hash(i)*.8,
-        new THREE.MeshLambertMaterial({color:'#ffebdb',transparent:true,opacity:.63,depthWrite:false}),10,8);
+      const cloud=new THREE.Mesh(new THREE.PlaneGeometry(13+hash(i)*8,3.5+hash(i*3)*2.5),cloudMaterial);
+      cloud.position.set(-24+i*8.5,16+hash(i*9)*9,-65-i*5);
+      cloud.layers.set(NOINK);cloud.renderOrder=-1;this.town.add(cloud);
     }
+    // Torn wood, syrup pools and scattered debris remain after the flood recedes.
+    for(let i=0;i<18;i++){
+      const x=-6.7+hash(i*7)*13.4,z=-38+hash(i*17)*76;
+      const puddle=orb(this.aftermath,[x,.08,z],.85+hash(i)*1.5,M.molasses,24,12);
+      puddle.scale.set(1.1+hash(i*11),.035,.7+hash(i*5)*1.1);
+      puddle.castShadow=false;
+    }
+    for(let i=0;i<16;i++){
+      const x=-7+hash(i*23)*14,z=-25+hash(i*19)*60;
+      const plank=box(this.aftermath,[x,.17,z],[.24,.22,1.5+hash(i)*2.6],M.wood);
+      plank.rotation.y=hash(i*37)*Math.PI;plank.rotation.z=(hash(i*53)-.5)*.2;
+    }
+    this.aftermath.visible=false;
     // Real modeled teaspoon with viscous strand and a painted wood table.
     const tableMaterial=mat('#ffffff');tableMaterial.map=woodTexture();
     box(this.macro,[0,.08,0],[40,.2,30],tableMaterial);
@@ -394,6 +471,7 @@ export class World {
     this.town.visible=shot.place==='town';
     this.macro.visible=shot.place==='macro';
     this.plans.visible=shot.place==='blueprint';
+    this.aftermath.visible=shot.id==='aftermath';
     cam.position.set(info.pos[0],info.pos[1],info.pos[2]);cam.fov=info.fov;
     cam.lookAt(new THREE.Vector3(info.look[0],info.look[1],info.look[2]));cam.rotateZ(info.roll);cam.updateProjectionMatrix();
     scene.fog=this.baseFog;
@@ -405,11 +483,22 @@ export class World {
     if(shot.place!=='town')this.baseFog.near=90;else this.baseFog.near=32;
     const burst=f>=688;
     this.tankShell.visible=!burst;
+    this.tankBands.visible=!burst;
     for(let i=0;i<this.shellFragments.length;i++){
-      const x=this.shellFragments[i],b=smooth((f-688-i*2)/30);
+      const x=this.shellFragments[i],b=smooth((f-688-i*1.5)/45);
+      const theta=i*2.39996,sy=3+hash(i*13)*9.6;
       x.visible=burst&&f<1200;
-      x.position.set((i-2)*.95*b,7.45-2.9*b,i%2?2.8*b:-1.8*b);
-      x.rotation.set(b*.35,b*(i-2)*.21,b*(i-2)*.24);
+      x.position.set(Math.sin(theta)*(4.3+9.5*b),sy-3.8*b,Math.cos(theta)*(4.3+8.5*b));
+      x.rotation.set(b*(.45+hash(i)*1.4),theta+b*(hash(i*7)-.5)*3,b*(hash(i*11)-.5)*3);
+    }
+    for(let i=0;i<this.spray.length;i++){
+      const x=this.spray[i],theta=hash(i*23)*Math.PI*2,t=(f-688-i*.19)/48;
+      x.visible=t>=0&&t<2.5;
+      if(!x.visible)continue;
+      const velocity=2+hash(i*5)*10;
+      x.position.set(Math.sin(theta)*(4.7+velocity*t),5+hash(i*17)*6+7*t-7*t*t,
+        Math.cos(theta)*(4.7+velocity*t));
+      x.scale.setScalar(.7+hash(i*13));
     }
     for(let i=0;i<this.drips.length;i++){
       const d=this.drips[i];d.visible=f>=385&&f<688;
@@ -439,3 +528,4 @@ export class World {
     return new THREE.Vector3(info.look[0],info.look[1],info.look[2]);
   }
 }
+
