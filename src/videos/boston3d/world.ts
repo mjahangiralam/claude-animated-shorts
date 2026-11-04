@@ -6,7 +6,7 @@ import {twoTone, TONE, CHAR, untone} from '../../../templates/bridge/shade';
 import {cardShade} from '../../../templates/bridge/cardshade';
 import {LIGHTS, LOOK} from '../../../templates/bridge/lights';
 import {cloudHD} from '../../../templates/bridge/paint';
-import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, TANK_BREACH, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, TANK_BREACH, fragmentFlightAt, outflowSheetPointAt, spoonBowlHeightAt, waveFoldAt, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -314,10 +314,10 @@ class Flood {
       const p=waveProfileAt(f,x),back=Math.max(0,p.front-z);
       // Steep forward bore and a lower turbulent wake. A broad Gaussian made
       // the previous surge look like a smooth brown sand dune.
-      const brow=p.height*Math.exp(-Math.pow(back/(3.9+.55*(1-energy)),2));
-      const wake=.35*energy*Math.exp(-Math.pow((back-7.2)/4.2,2));
-      const eddies=(.12+.13*energy)*Math.sin(z*.88+f*.12+x*.62)
-        +.11*Math.cos(z*1.33-f*.14+x*.67);
+      const brow=p.height*Math.exp(-Math.pow(back/(2.3+.50*(1-energy)),2));
+      const wake=.43*energy*Math.exp(-Math.pow((back-5.7)/3.9,2));
+      const eddies=(.18+.16*energy)*Math.sin(z*.88+f*.12+x*.62)
+        +.15*Math.cos(z*1.33-f*.14+x*.67);
       return Math.max(.07,.13+brow+wake+eddies);
     };
     for(let j=0;j<=nz;j++)for(let i=0;i<=nx;i++){
@@ -335,10 +335,11 @@ class Flood {
       const x=spread.left+(spread.right-spread.left)*i/nx,lip=waveProfileAt(f,x).front,crest=surface(x,lip);
       for(let j=0;j<=nf;j++){
         const t=j/nf,idx=i*(nf+1)+j;
-        const curl=(1.04+.42*energy)*Math.sin(Math.PI*t)*(1+.18*Math.sin(x*.76+f*.065));
-        const ripple=(.09+.05*energy)*Math.sin(x*1.8+f*.11+t*8)*Math.sin(Math.PI*t);
-        // The brow overhangs the advancing front, driven by surge velocity.
-        b.setXYZ(idx,x,.04+(crest-.04)*t+ripple,lip+curl+.15*energy*t*t);
+        const fold=waveFoldAt(f,x,t);
+        const ripple=(.08+.04*energy)*Math.sin(x*1.8+f*.11+t*8)*Math.sin(Math.PI*t);
+        // Upper face overturns into a forward-curling lip; both ends remain
+        // attached to the street and rear water surface.
+        b.setXYZ(idx,x,.04+(crest-.04)*t+ripple-fold.sag,lip+fold.forward);
         const streak=.19*Math.sin(x*1.15+t*19-f*.087)+.08*Math.cos(x*2.7-t*31);
         const sheen=clamp(t*.76+streak,0,1);
         // Burnt-sienna undercut, molten-orange crest, golden streaked highlights.
@@ -392,6 +393,9 @@ export class World {
   private tankRemnant:THREE.Mesh;
   private shellFragments:THREE.Mesh[]=[];
   private tankBands=new THREE.Group();
+  private brokenBands=new THREE.Group();
+  private outflow:THREE.Mesh;
+  private outflowGeom:THREE.BufferGeometry;
   private spray:THREE.Mesh[]=[];
   private paintMask:THREE.Mesh;
   private drips:THREE.Mesh[]=[];
@@ -479,6 +483,15 @@ export class World {
     this.tankRemnant.position.set(0,3.2,0);
     this.tankRemnant.castShadow=true;this.tankRemnant.receiveShadow=true;
     this.tankRemnant.visible=false;this.tank.add(this.tankRemnant);
+    // Broken brass hoops make the surviving lower wall unmistakably a tank.
+    // These are arcs, not intact full-height rings floating after the blast.
+    this.tank.add(this.brokenBands);this.brokenBands.visible=false;
+    for(let i=0;i<4;i++){
+      const hoop=new THREE.Mesh(
+        new THREE.TorusGeometry(5.72,.075,8,65,Math.PI*(1.22+.12*(i%2))),M.brass);
+      hoop.rotation.x=Math.PI/2;hoop.rotation.y=i*.85;
+      hoop.position.y=.7+i*1.48;this.brokenBands.add(hoop);
+    }
     this.tank.add(this.tankBands);
     cylinder(this.tankBands,5.82,.4,[0,.3,0],M.trim);
     cylinder(this.tankBands,5.82,.35,[0,14.95,0],M.trim);
@@ -517,6 +530,32 @@ export class World {
       this.drips.push(d);
     }
     this.flood=new Flood(this.town);
+    // A filled ribbon cascades continuously from the broken steel wall to the
+    // road, so the approaching wave has an unambiguous physical source.
+    const flowNx=12,flowNz=30;
+    const flowPos=new Float32Array((flowNx+1)*(flowNz+1)*3);
+    const flowColors=new Float32Array(flowPos.length);
+    const flowIndices:number[]=[];
+    for(let j=0;j<flowNz;j++)for(let i=0;i<flowNx;i++){
+      const k=j*(flowNx+1)+i;
+      flowIndices.push(k,k+1,k+flowNx+1,k+1,k+flowNx+2,k+flowNx+1);
+    }
+    for(let j=0;j<=flowNz;j++)for(let i=0;i<=flowNx;i++){
+      const k=j*(flowNx+1)+i,side=Math.abs(2*i/flowNx-1);
+      const light=1-side*.57+.12*Math.sin(j*.83+i*.9);
+      flowColors[k*3]=.34*light;
+      flowColors[k*3+1]=.13*light;
+      flowColors[k*3+2]=.052*light;
+    }
+    this.outflowGeom=new THREE.BufferGeometry();
+    this.outflowGeom.setIndex(flowIndices);
+    this.outflowGeom.setAttribute('position',
+      new THREE.BufferAttribute(flowPos,3).setUsage(THREE.DynamicDrawUsage));
+    this.outflowGeom.setAttribute('color',new THREE.BufferAttribute(flowColors,3));
+    this.outflow=new THREE.Mesh(this.outflowGeom,
+      new THREE.MeshStandardMaterial({vertexColors:true,roughness:.24,metalness:.11,side:THREE.DoubleSide}));
+    this.outflow.castShadow=true;this.outflow.receiveShadow=true;
+    this.outflow.visible=false;this.town.add(this.outflow);
     for(let i=0;i<7;i++){
       const homes: [number,number,number][]=[[-3,0,13],[2.4,0,0],[-2.8,0,-12],[4,0,24],[-4.5,0,28],[1.4,0,-25],[0,0,34]];
       this.people.push(new Toon(this.town,i,homes[i]));
@@ -557,17 +596,51 @@ export class World {
     box(this.macro,[0,.08,0],[40,.2,30],tableMaterial);
     const spoon=new THREE.Group();spoon.position.set(-.9,3.25,-1.7);
     this.macro.add(spoon);
-    const bowl=orb(spoon,[-1.1,0,-.3],1.35,new THREE.MeshStandardMaterial({color:'#c4d6d8',roughness:.22,metalness:.88}),24,16);
-    bowl.scale.set(1.35,.34,.8);
-    const silverRim=new THREE.Mesh(new THREE.TorusGeometry(1.27,.075,9,48),
-      new THREE.MeshStandardMaterial({color:'#dce7e9',metalness:.88,roughness:.20}));
-    silverRim.rotation.x=Math.PI/2;silverRim.scale.set(1.4,.83,1);
-    silverRim.position.set(-1.1,.23,-.3);spoon.add(silverRim);
-    const syrup=orb(spoon,[-1.05,.23,-.32],1.08,M.molasses,32,16);syrup.scale.set(1.45,.16,.84);
-    // Align the handle toward the lens, so it reads as a spoon in portrait framing.
-    const shaft=cylinder(spoon,.16,5.2,[-1.1,.13,2.1],M.brass,16);
-    shaft.rotation.x=Math.PI/2;
-    const strandGeo=new THREE.CylinderGeometry(.12,.22,3.6,12);
+    // Genuine concave spoon geometry: shallow ellipsoidal basin with an inner
+    // floor, high rolled rim, thin silver underside, and a flattened handle.
+    const spoonSilver=new THREE.MeshStandardMaterial({
+      color:'#dce6e8',roughness:.19,metalness:.86,side:THREE.DoubleSide
+    });
+    const under=orb(spoon,[-1.1,-.13,-.3],1.20,spoonSilver,32,16);
+    under.scale.set(1.37,.21,.86);
+    const radial=16,around=64;
+    const bowlVerts=new Float32Array((radial+1)*(around+1)*3);
+    const bowlFaces:number[]=[];
+    for(let j=0;j<=radial;j++){
+      const r=Math.max(.001,j/radial);
+      for(let i=0;i<=around;i++){
+        const angle=2*Math.PI*i/around,k=j*(around+1)+i;
+        bowlVerts[k*3]=-1.1+1.64*r*Math.cos(angle);
+        bowlVerts[k*3+1]=spoonBowlHeightAt(r);
+        bowlVerts[k*3+2]=-.3+1.04*r*Math.sin(angle);
+      }
+    }
+    for(let j=0;j<radial;j++)for(let i=0;i<around;i++){
+      const k=j*(around+1)+i;
+      bowlFaces.push(k,k+1,k+around+1,k+1,k+around+2,k+around+1);
+    }
+    const dishGeo=new THREE.BufferGeometry();
+    dishGeo.setAttribute('position',new THREE.BufferAttribute(bowlVerts,3));
+    dishGeo.setIndex(bowlFaces);dishGeo.computeVertexNormals();
+    const bowl=new THREE.Mesh(dishGeo,spoonSilver);bowl.castShadow=true;spoon.add(bowl);
+    const silverRim=new THREE.Mesh(new THREE.TorusGeometry(1,.055,10,72),spoonSilver);
+    silverRim.rotation.x=Math.PI/2;silverRim.scale.set(1.64,1.04,1);
+    silverRim.position.set(-1.1,.24,-.3);spoon.add(silverRim);
+    const syrupMat=new THREE.MeshStandardMaterial({color:'#441d18',roughness:.12,metalness:.04});
+    const syrup=orb(spoon,[-1.1,.088,-.3],1.0,syrupMat,48,20);
+    syrup.scale.set(1.39,.055,.81);
+    const liquidSheen=new THREE.Mesh(new THREE.TorusGeometry(1,.018,6,64,Math.PI*1.18),
+      new THREE.MeshStandardMaterial({color:'#bc7b52',roughness:.20,metalness:.05}));
+    liquidSheen.rotation.x=Math.PI/2;liquidSheen.scale.set(1.34,.80,1);
+    liquidSheen.rotation.z=-.2;liquidSheen.position.set(-1.1,.125,-.3);spoon.add(liquidSheen);
+    // A single continuous, slightly flattened metal handle, not a gold rod.
+    const handle=new THREE.Mesh(new THREE.CapsuleGeometry(.20,4.55,10,16),spoonSilver);
+    handle.scale.set(1.35,1,.36);handle.rotation.x=Math.PI/2;
+    handle.position.set(-1.1,.14,2.91);handle.castShadow=true;spoon.add(handle);
+    const neck=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.72,8,12),spoonSilver);
+    neck.scale.set(1.4,1,.50);neck.rotation.x=Math.PI/2;
+    neck.position.set(-1.1,.16,.60);spoon.add(neck);
+    const strandGeo=new THREE.CylinderGeometry(.065,.135,3.6,12);
     this.spoonStream=new THREE.Mesh(strandGeo,M.molasses);this.macro.add(this.spoonStream);
     this.spoonDrop=orb(this.macro,[-2.2,1.1,-2],.23,M.highlight,14,9);
     box(this.macro,[5,1.75,-8],[3,3.5,3],mat('#9e5f43'),true);
@@ -642,12 +715,34 @@ export class World {
     this.tankShell.visible=tankState.intact;
     this.tankRemnant.visible=tankState.remnant;
     this.tankBands.visible=tankState.intact;
+    this.brokenBands.visible=tankState.remnant;
     for(let i=0;i<this.shellFragments.length;i++){
-      const x=this.shellFragments[i],b=smooth((f-688-i*1.5)/45);
-      const theta=i*2.39996,sy=3+hash(i*13)*9.6;
-      x.visible=burst&&f<1200;
-      x.position.set(Math.sin(theta)*(4.3+9.5*b),sy-3.8*b,Math.cos(theta)*(4.3+8.5*b));
-      x.rotation.set(b*(.45+hash(i)*1.4),theta+b*(hash(i*7)-.5)*3,b*(hash(i*11)-.5)*3);
+      const piece=this.shellFragments[i],flight=fragmentFlightAt(f,i);
+      piece.visible=burst&&f<1200;
+      piece.position.set(flight.x,flight.y,flight.z);
+      // Once a plate hits the road it rests flat, instead of hovering or
+      // continuing to tumble indefinitely.
+      piece.rotation.set(flight.landed?Math.PI/2+(hash(i*7)-.5)*.12:flight.rx,
+        flight.ry,flight.landed?(hash(i*11)-.5)*.13:flight.rz);
+    }
+    this.outflow.visible=burst&&f<1030;
+    if(this.outflow.visible){
+      const pos=this.outflowGeom.getAttribute('position') as THREE.BufferAttribute;
+      const nx=12,nz=30;
+      const grown=smooth((f-688)/24);
+      for(let j=0;j<=nz;j++){
+        const t=j/nz,center=outflowSheetPointAt(f,t);
+        const width=(.46+1.45*smooth(t))*(.3+.7*grown);
+        for(let i=0;i<=nx;i++){
+          const side=2*i/nx-1;
+          const ruffle=Math.sin(f*.19+t*19+side*4)*.09*Math.sin(Math.PI*t);
+          pos.setXYZ(j*(nx+1)+i,
+            center.x+side*width,
+            center.y+.12*(1-side*side)*Math.sin(Math.PI*t)+ruffle,
+            center.z+.15*Math.sin(t*17+f*.13+side*5)*Math.sin(Math.PI*t));
+        }
+      }
+      pos.needsUpdate=true;this.outflowGeom.computeVertexNormals();
     }
     for(let i=0;i<this.spray.length;i++){
       const drop=this.spray[i],age=(f-688-i*.19)/30;
@@ -678,7 +773,7 @@ export class World {
         !(shot.id==='tank'&&person.home.z>20)&&(
           shot.id==='hook'||shot.id==='tank'||shot.id==='rupture'||shot.id==='rush'||
           shot.id==='firehouse'||shot.id==='aftermath'),panic&&i<5);
-      if(shot.id==='rush'&&!showRushCharacter(cam.position.z,person.mesh.position.z)){
+      if((shot.id==='rush'||shot.id==='rupture')&&!showRushCharacter(cam.position.z,person.mesh.position.z)){
         person.mesh.visible=false;person.shadow.visible=false;
       }
     });
