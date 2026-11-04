@@ -104,15 +104,43 @@ test('tank steel fragments obey gravity, hit the street, and stop travelling',()
 
 test('viscous liquid stays attached to the tank rupture before reaching the street',()=>{
   assert.equal(typeof physics.outflowSheetPointAt,'function','missing tank-to-street liquid connection');
+  assert.equal(typeof physics.tankLiquidLevelAt,'function','the broken tank has no defined liquid level');
   const start=physics.outflowSheetPointAt(740,0);
+  const mouth=physics.outflowSheetPointAt(740,.2);
   const end=physics.outflowSheetPointAt(740,1);
-  assert.ok(Math.abs(start.x-7.3)<0.15 && Math.abs(start.z+12)<0.15,
-    'outflow does not start at the tank wall');
-  assert.ok(start.y>3.5,'molasses does not leave an elevated breach');
+  assert.ok(Math.hypot(start.x-11,start.z+16)<4.5,
+    'the stream begins outside the brown liquid instead of inside the tank');
+  assert.ok(start.y<physics.tankLiquidLevelAt(740)-.4,
+    'the tank liquid level is below the stream origin');
+  assert.ok(Math.abs(mouth.x-7.3)<.15 && Math.abs(mouth.z+12)<.15,
+    'the stream does not pass through the visible torn opening');
+  assert.ok(mouth.y>3.5,'molasses does not pass through an elevated breach');
   assert.ok(end.y<0.5 && end.z>-9,'molasses does not descend to the street');
   const newborn=physics.outflowSheetPointAt(688,1);
-  assert.ok(Math.hypot(newborn.x-start.x,newborn.z-start.z)<0.2,
+  assert.ok(Math.hypot(newborn.x-mouth.x,newborn.z-mouth.z)<0.2,
     'the whole liquid ribbon appears fully extended at the burst frame');
+});
+
+test('newborn molasses stream cannot outrun its own flood crest',()=>{
+  for(const frame of [700,708,715,730]){
+    const tip=physics.outflowSheetPointAt(frame,1);
+    const crest=physics.waveProfileAt(frame,tip.x);
+    assert.ok(tip.z<=crest.front+.5,
+      `stream tip leads the flood crest by an impossible gap at frame ${frame}`);
+  }
+});
+
+test('the source remains submerged as the tank drains over the rupture shot',()=>{
+  assert.equal(typeof physics.tankLiquidLevelAt,'function');
+  const levels=[688,740,880,1030].map(f=>physics.tankLiquidLevelAt(f));
+  assert.ok(levels[0]>levels[1]&&levels[1]>levels[2],
+    'liquid level does not gradually fall as it leaves the broken tank');
+  assert.ok(levels.every(h=>h>5.25&&h<9),
+    'molasses is empty or hidden below the visible break');
+  for(const frame of [688,740,880,1030]){
+    assert.ok(physics.outflowSheetPointAt(frame,0).y<physics.tankLiquidLevelAt(frame),
+      'the flow source appears above the remaining syrup surface');
+  }
 });
 
 test('the spoon geometry has a recessed bowl instead of a flat convex disc',()=>{
