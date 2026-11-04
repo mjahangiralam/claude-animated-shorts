@@ -86,3 +86,15 @@ test('molasses is a breaking liquid crest with animated droplets',()=>{
   assert.match(sceneSource,/this\.droplets\.length/);
   assert.match(sceneSource,/Burnt-sienna undercut/);
 });
+
+const gradeSource=readFileSync(new URL('../src/videos/boston3d/grade.ts',import.meta.url),'utf8');
+
+test('painterly lighting is not double-saturated by the old full-strength film grade',()=>{
+  const m=gradeSource.match(/GRADE_STRENGTH[^\n]*=\s*\{\s*day:\s*([\d.]+),\s*golden:\s*([\d.]+)/);
+  assert.ok(m,'could not read active day/golden grade amounts');
+  assert.ok(+m[1]>=.25 && +m[1]<=.7,'day grade is overpowering the new painted scene');
+  assert.ok(+m[2]>=.25 && +m[2]<=.7,'golden grade is overpowering the new painted scene');
+  const tone=sceneSource.match(/TONE\.uSat\.value=golden\?([\d.]+):([\d.]+)/);
+  assert.ok(tone,'missing world saturation setting');
+  assert.ok(+tone[1]<=1.1&&+tone[2]<=1.1,'world color saturation is stacked over full grade');
+});
