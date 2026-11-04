@@ -58,10 +58,10 @@ The strangest flood in Boston's history was also one that could have been preven
 
 - [x] Research and first draft
 - [x] Art direction and two cinematic concept frames generated in ChatGPT conversation
-- [ ] Build Remotion composition and procedural 3D scene
-- [ ] Generate and time voice narration
-- [ ] Compose original sound and mix
-- [ ] Render 60-second MP4
-- [ ] Inspect final video and publish downloadable artifact
+- [x] Implement Remotion 3D composition, procedural town, tank, wave, characters and postprocessing (unrendered)
+- [x] Build code for scene-aligned voice narration (online neural TTS optional; Mac fallback)
+- [x] Compose code for original sound effects/music and mixing
+- [ ] Render and verify 60-second 3D MP4 on the user's Mac
+- [ ] Inspect rendered frames, fix visual issues, then publish downloadable artifact
 
 Notes: Scene artwork is interpretive, not a reconstruction of exact architecture. Do not imply the victims' suffering is humorous. The wave speed is a historical estimate.
