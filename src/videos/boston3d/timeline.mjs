@@ -54,6 +54,42 @@ export const jetParticleAt=(ageSeconds,headMeters,launchHeightMeters,liftMetersP
     height:Math.max(0,launchHeightMeters+liftMetersPerSecond*t-.5*GRAVITY_M_S2*t*t)
   };
 };
+// Deterministic rigid-steel debris, with a gravity arc and a stable ground contact.
+const debrisHash=(n)=>{const v=Math.sin(n*74.17+19.1)*43758.5453;return v-Math.floor(v);};
+export const fragmentFlightAt=(frame,index)=>{
+  const theta=index*2.3999632297;
+  const t=Math.max(0,(frame-688-index*.25)/FPS);
+  const y0=3.1+debrisHash(index*7+1)*8.7;
+  const vy=5.5+debrisHash(index*13+2)*4.5;
+  const contactY=.32;
+  const landTime=(vy+Math.sqrt(vy*vy+2*GRAVITY_M_S2*(y0-contactY)))/GRAVITY_M_S2;
+  const fly=Math.min(t,landTime);
+  const velocity=3.9+debrisHash(index*11+3)*4.1;
+  const travel=velocity*fly/(1+.14*fly);
+  const radius=4.6+debrisHash(index*5+4)*1.0;
+  return {
+    x:Math.sin(theta)*(radius+travel),
+    y:t>=landTime?contactY:y0+vy*t-.5*GRAVITY_M_S2*t*t,
+    z:Math.cos(theta)*(radius+.88*travel),
+    rx:Math.min(fly,landTime)*(1.2+debrisHash(index*3+5)),
+    ry:theta+Math.min(fly,landTime)*(.55+debrisHash(index+9)),
+    rz:Math.min(fly,landTime)*(.9+debrisHash(index+7)),
+    landed:t>=landTime
+  };
+};
+// A visible syrup curtain physically connects the elevated breach to the road.
+export const outflowSheetPointAt=(frame,fraction)=>{
+  const reach=smooth((frame-688)/(FPS*.85));
+  const t=clamp(fraction)*reach;
+  return {
+    x:TANK_BREACH.x-2.9*t,
+    y:.17+4.5*(1-smooth(t))+.11*Math.sin(Math.PI*t)*Math.sin(frame*.16),
+    z:TANK_BREACH.z+7.1*t
+  };
+};
+// Concave inner surface of a real spoon, from center (low) to lip (high).
+export const spoonBowlHeightAt=(radius)=>-.09+.33*Math.pow(clamp(radius),2);
+
 export const shotAt = (frame)=>SHOTS.find(s=>frame>=s.a&&frame<s.b) || SHOTS[SHOTS.length-1];
 export const shotProgress=(frame)=>{const s=shotAt(frame);return clamp((frame-s.a)/(s.b-s.a));};
 // The tank's torn street-facing wall is at this world-space position.
@@ -85,13 +121,24 @@ export const waveProfileAt=(frame,x)=>{
   const height=Math.max(1.7,(.95+2.85*lateral)+.55*Math.sin(x*.74-frame*.034)+.28*Math.cos(x*1.48+frame*.058));
   return {front,height};
 };
+// The face pushes out most strongly near its upper third, then folds back into
+// the surface. This creates an overturning syrup lip, not a semicircular mound.
+export const waveFoldAt=(frame,x,fraction)=>{
+  const t=clamp(fraction),speed=surgeSpeedAt(frame<115?700+frame:frame);
+  const energy=clamp(speed/7.5,.34,1.25);
+  const curl=Math.sin(Math.PI*t*t);
+  return {
+    forward:(1.35+1.1*energy)*curl*(1+.12*Math.sin(x*.87+frame*.052)),
+    sag:(.21+.17*energy)*curl*curl
+  };
+};
 const KEYS={
  hook:{pos:[1.2,3.0,21],look:[2,3.2,-6],fov:45,roll:-0.038,drift:[-1,0,-3.7]},
  spoon:{pos:[-.8,8.5,9],look:[-1.8,3.4,-1],fov:38,roll:0.02,drift:[0.3,-0.2,-0.8]},
  tank:{pos:[0,4.7,22],look:[9,8,-13],fov:42,roll:-0.026,drift:[-2,1.3,-4.4]},
  leaks:{pos:[20.5,5.8,-5],look:[15.8,4.5,-12.9],fov:31,roll:0.016,drift:[-1.3,0.4,-1.2]},
  paint:{pos:[20.5,5.2,-5],look:[15.8,4.5,-12.9],fov:31,roll:0.016,drift:[-1.4,0,-1.7]},
- rupture:{pos:[1.3,4.3,23],look:[8,7,-11],fov:42,roll:0.024,drift:[-1.2,0.5,-5]},
+ rupture:{pos:[1.3,5.2,23],look:[7.9,4.5,-12],fov:44,roll:0.024,drift:[-1.2,0.2,-5]},
  rush:{pos:[0,3.9,38],look:[0,3.2,16],fov:46,roll:-0.023,drift:[-0.5,0.3,-4.5]},
  firehouse:{pos:[4,5.7,12],look:[-13.9,5,-9],fov:47,roll:0.018,drift:[-0.5,-0.8,-3]},
  physics:{pos:[0.8,9.6,14],look:[0.2,3,-3],fov:42,roll:-0.02,drift:[-0.6,-1,-3]},
