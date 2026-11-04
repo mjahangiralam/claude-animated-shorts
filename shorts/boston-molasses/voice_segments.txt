@@ -1,0 +1,12 @@
+# Each line: start frame | end frame | narration (30 fps; exactly 1800 frames)
+0|115|In 1919, a wave of molasses tore through Boston at thirty-five miles an hour.
+115|240|Yes, molasses. The thick syrup that barely moves off a spoon.
+240|385|A fifty-foot steel tank loomed over the North End, holding more than two million gallons.
+385|540|People reported leaks. Dark syrup seeped from the seams. Neighbours even collected it in buckets.
+540|670|The company painted the tank brown, making those leaks harder to see.
+670|790|Then, one January afternoon, the massive tank split apart without warning.
+790|1030|A towering wave rushed through the streets. It smashed buildings, swept people off their feet, and knocked a firehouse off its foundation.
+1030|1190|The dark flood surged with terrifying force, leaving shattered wood and twisted steel behind.
+1190|1450|One spoonful flows slowly. But millions of gallons released together can hit like a powerful flood. And once molasses stops, its thickness makes escape incredibly difficult.
+1450|1640|Rescuers struggled through the thick mess. Twenty-one people died, and around one hundred and fifty were injured. The human cost was devastating.
+1640|1800|The tank had been dangerously weak. This bizarre disaster could have been prevented.
