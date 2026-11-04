@@ -64,3 +64,25 @@ test('pressure-release droplets follow damped horizontal travel and gravity',()=
   assert.ok(b.height>0,'jet hits ground instantaneously');
   assert.equal(c.height,0,'gravity never returns the droplet to the street');
 });
+
+test('the post-rupture surge emerges from the tank breach, not the distant street',()=>{
+  const first=floodFrontAt(688);
+  assert.ok(first>-14&&first<-9,'surge must start beside the tank at z ≈ -12; got '+first);
+  const later=floodFrontAt(910);
+  assert.ok(later>12&&later<24,'advancing wave must remain visible from the rush camera');
+});
+
+test('the rupture starts on the tank side, then spreads across the whole street',()=>{
+  assert.equal(typeof physics.floodSpreadAt,'function','missing source-centered lateral spread');
+  const initial=physics.floodSpreadAt(688);
+  const emerging=physics.floodSpreadAt(720);
+  const downstream=physics.floodSpreadAt(870);
+  assert.ok(initial.left>5 && initial.right>7,
+    'initial syrup already covers the entire street instead of emerging at x≈7.3');
+  assert.ok(emerging.left<initial.left && emerging.left>0,
+    'the surge does not fan out from the right-side tank');
+  assert.ok(downstream.left<-6.5 && downstream.right>6.5,
+    'the wave never spans the street after travelling away from the tank');
+  assert.ok(initial.trail<downstream.trail,
+    'a full-length flood sheet appears instantaneously at rupture');
+});
