@@ -6,7 +6,7 @@ import {twoTone, TONE, CHAR, untone} from '../../../templates/bridge/shade';
 import {cardShade} from '../../../templates/bridge/cardshade';
 import {LIGHTS, LOOK} from '../../../templates/bridge/lights';
 import {cloudHD} from '../../../templates/bridge/paint';
-import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, surgeSpeedAt, jetParticleAt, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -300,16 +300,24 @@ class Flood {
     this.root.visible=false;parent.add(this.root);
   }
   update(f:number){
-    const active=f<115||(f>=676&&f<1450);
+    const active=f<115||(f>=688&&f<1450);
     this.root.visible=active;if(!active)return;
     const nx=34,nz=43,nf=7;
+    // Visual wave energy comes from the pressure-head surge and viscous deceleration.
+    // The cold-open previews the later burst, hence its remapped time.
+    const speed=surgeSpeedAt(f<115?700+f:f);
+    const energy=clamp(speed/7.5,.34,1.25);
     const a=this.geom.getAttribute('position') as THREE.BufferAttribute;
     const aColor=this.geom.getAttribute('color') as THREE.BufferAttribute;
     const surface=(x:number,z:number)=>{
       const p=waveProfileAt(f,x),back=Math.max(0,p.front-z);
-      const ridge=.38*Math.exp(-Math.pow((back-6.0)/2.3,2))*(1+Math.sin(x*.8-f*.1)*.28);
-      return Math.max(.08,.16+p.height*Math.exp(-Math.pow(back/6.1,2))+ridge
-        +.24*Math.sin(z*.71+f*.11+x*.55)+.13*Math.cos(z*1.33-f*.14+x*.67));
+      // Steep forward bore and a lower turbulent wake. A broad Gaussian made
+      // the previous surge look like a smooth brown sand dune.
+      const brow=p.height*Math.exp(-Math.pow(back/(3.9+.55*(1-energy)),2));
+      const wake=.35*energy*Math.exp(-Math.pow((back-7.2)/4.2,2));
+      const eddies=(.12+.13*energy)*Math.sin(z*.88+f*.12+x*.62)
+        +.11*Math.cos(z*1.33-f*.14+x*.67);
+      return Math.max(.07,.13+brow+wake+eddies);
     };
     for(let j=0;j<=nz;j++)for(let i=0;i<=nx;i++){
       const x=-7.6+15.2*i/nx,lip=waveProfileAt(f,x).front;
@@ -326,9 +334,10 @@ class Flood {
       const x=-7.6+15.2*i/nx,lip=waveProfileAt(f,x).front,crest=surface(x,lip);
       for(let j=0;j<=nf;j++){
         const t=j/nf,idx=i*(nf+1)+j;
-        const curl=.95*Math.sin(Math.PI*t)*(1+.18*Math.sin(x*.76+f*.065));
-        const ripple=.09*Math.sin(x*1.8+f*.11+t*8)*Math.sin(Math.PI*t);
-        b.setXYZ(idx,x,.04+(crest-.04)*t+ripple,lip+curl);
+        const curl=(1.04+.42*energy)*Math.sin(Math.PI*t)*(1+.18*Math.sin(x*.76+f*.065));
+        const ripple=(.09+.05*energy)*Math.sin(x*1.8+f*.11+t*8)*Math.sin(Math.PI*t);
+        // The brow overhangs the advancing front, driven by surge velocity.
+        b.setXYZ(idx,x,.04+(crest-.04)*t+ripple,lip+curl+.15*energy*t*t);
         const streak=.19*Math.sin(x*1.15+t*19-f*.087)+.08*Math.cos(x*2.7-t*31);
         const sheen=clamp(t*.76+streak,0,1);
         // Burnt-sienna undercut, molten-orange crest, golden streaked highlights.
@@ -341,7 +350,7 @@ class Flood {
       const z=waveProfileAt(f,x).front-1.6-hash(i*19)*18;
       const h=surface(x,z);
       p.position.set(x,h+.015+Math.sin(f*.16+i)*.035,z);
-      p.scale.set(1.5+.5*hash(i),.18,.42+hash(i));
+      p.scale.set(1.25+.5*energy+.5*hash(i),.18,.42+hash(i));
       p.rotation.y=hash(i*17)*Math.PI;
     }
     for(let i=0;i<this.foam.length;i++){
@@ -350,20 +359,21 @@ class Flood {
       const y=surface(x,lip);
       const wiggle=Math.sin(f*.17+i*1.73),q=hash(i*17);
       // Flattened caramel streaks skim across the curl, staggered in depth.
-      o.position.set(x,y-.10+.11*wiggle,lip+.16+.55*q);
-      o.scale.set(.7+q*1.7,.12+.07*q,.33+.45*hash(i*23));
+      o.position.set(x,y-.10+.11*wiggle*energy,lip+.16+.55*q);
+      o.scale.set((.7+q*1.7)*energy,.12+.07*q,.33+.45*hash(i*23));
       o.rotation.set(0,-.28+wiggle*.15,wiggle*.23);
     }
     for(let i=0;i<this.droplets.length;i++){
       const o=this.droplets[i],x=-7.0+hash(i*19)*14;
       const lip=waveProfileAt(f,x).front;
-      const phase=(f*.075+hash(i*37)*7)%4.2;
-      const rise=Math.sin(phase/4.2*Math.PI);
+      const phase=(f*.037+hash(i*37)*2.1)%2.1;
+      const jet=jetParticleAt(phase,.5+energy*1.3,.05,2.6*energy+hash(i*43)*2);
       const crest=surface(x,lip);
-      o.position.set(x+Math.sin(phase+i)*.25,crest+.16+rise*(.35+hash(i*43)*1.45),
-        lip+.28+phase*.32);
-      const d=.48+hash(i*7);
-      o.scale.set(d,d*(1+.85*rise),d);
+      o.visible=jet.height>.08;
+      o.position.set(x+Math.sin(phase+i)*.27,crest+jet.height,
+        lip+.18+jet.forward*.55);
+      const d=.4+hash(i*7)*.52;
+      o.scale.set(d,d*(1+.45*energy),d);
     }
   }
 }
@@ -639,13 +649,19 @@ export class World {
       x.rotation.set(b*(.45+hash(i)*1.4),theta+b*(hash(i*7)-.5)*3,b*(hash(i*11)-.5)*3);
     }
     for(let i=0;i<this.spray.length;i++){
-      const x=this.spray[i],theta=hash(i*23)*Math.PI*2,t=(f-688-i*.19)/48;
-      x.visible=t>=0&&t<2.5;
-      if(!x.visible)continue;
-      const velocity=2+hash(i*5)*10;
-      x.position.set(Math.sin(theta)*(4.7+velocity*t),5+hash(i*17)*6+7*t-7*t*t,
-        Math.cos(theta)*(4.7+velocity*t));
-      x.scale.setScalar(.7+hash(i*13));
+      const drop=this.spray[i],age=(f-688-i*.19)/30;
+      const outletY=3.5+hash(i*17)*6.2;
+      const head=14.8-outletY;
+      const lift=3.5+hash(i*5)*3.8;
+      const jet=jetParticleAt(age,head,outletY,lift);
+      drop.visible=age>=0&&age<2.5&&jet.height>.05;
+      if(!drop.visible)continue;
+      // Breakaway syrup jets start at the breached near-side wall, accelerate
+      // from pressure head, and fan into the street as drag slows their travel.
+      const yaw=-.62+hash(i*23)*1.34;
+      drop.position.set(-3.7+Math.sin(yaw)*jet.forward,jet.height,
+        4.0+Math.cos(yaw)*jet.forward);
+      drop.scale.setScalar(.55+.65*hash(i*13));
     }
     for(let i=0;i<this.drips.length;i++){
       const d=this.drips[i];d.visible=f>=385&&f<688;
