@@ -6,7 +6,7 @@ import {twoTone, TONE, CHAR, untone} from '../../../templates/bridge/shade';
 import {cardShade} from '../../../templates/bridge/cardshade';
 import {LIGHTS, LOOK} from '../../../templates/bridge/lights';
 import {cloudHD} from '../../../templates/bridge/paint';
-import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, TANK_BREACH, fragmentFlightAt, outflowSheetPointAt, outflowCrossSectionAt, spoonBowlHeightAt, spoonDripAt, waveFoldAt, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, tankLiquidLevelAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, TANK_BREACH, fragmentFlightAt, outflowSheetPointAt, outflowCrossSectionAt, spoonBowlHeightAt, spoonDripAt, waveFoldAt, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -399,6 +399,7 @@ export class World {
   private tank=new THREE.Group();
   private tankShell:THREE.Mesh;
   private tankRemnant:THREE.Mesh;
+  private tankSyrup:THREE.Mesh;
   private shellFragments:THREE.Mesh[]=[];
   private impacts:THREE.Mesh[]=[];
   private tankBands=new THREE.Group();
@@ -496,6 +497,15 @@ export class World {
     this.tankRemnant.position.set(0,4,0);
     this.tankRemnant.castShadow=true;this.tankRemnant.receiveShadow=true;
     this.tankRemnant.visible=false;this.tank.add(this.tankRemnant);
+    // A real brown reservoir remains behind the torn steel. The discharge
+    // path begins well inside this liquid body and exits via the missing sector.
+    this.tankSyrup=new THREE.Mesh(
+      new THREE.CylinderGeometry(5.22,5.22,1,72,4,false),
+      new THREE.MeshStandardMaterial({color:'#87502c',roughness:.27,metalness:.06,
+        side:THREE.DoubleSide})
+    );
+    this.tankSyrup.castShadow=true;this.tankSyrup.receiveShadow=true;
+    this.tankSyrup.visible=false;this.tank.add(this.tankSyrup);
     // Short riveted steel reinforcing bands follow the broken wall surface.
     // The previous thin torus hoops hung across the sky like bent wires.
     this.tank.add(this.brokenBands);this.brokenBands.visible=false;
@@ -737,6 +747,12 @@ export class World {
     const burst=!tankState.intact;
     this.tankShell.visible=tankState.intact;
     this.tankRemnant.visible=tankState.remnant;
+    this.tankSyrup.visible=tankState.remnant;
+    if(this.tankSyrup.visible){
+      const level=tankLiquidLevelAt(f),bottom=.20;
+      this.tankSyrup.scale.y=level-bottom;
+      this.tankSyrup.position.y=(level+bottom)*.5;
+    }
     this.tankBands.visible=tankState.intact;
     this.brokenBands.visible=tankState.remnant;
     for(let i=0;i<this.shellFragments.length;i++){
