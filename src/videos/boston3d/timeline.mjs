@@ -20,12 +20,46 @@ export const tankStateAt=(frame)=>({intact:frame<688,remnant:frame>=688});
 export const showRushCharacter=(cameraZ,characterZ)=>characterZ<cameraZ-6;
 export const clamp = (x,a=0,b=1)=>Math.min(b,Math.max(a,x));
 export const smooth = (x)=>{const u=clamp(x);return u*u*(3-2*u);};
+
+// Bernoulli-inspired pressure-head release with a viscous discharge loss.
+// This is a stylized depth-driven surge, not a full Navier-Stokes simulation.
+export const GRAVITY_M_S2=9.81;
+export const pressureHeadSpeedAt=(headMeters)=>{
+  const head=Math.max(0,headMeters);
+  return .68*Math.sqrt(2*GRAVITY_M_S2*head);
+};
+const RELEASE_FRAME=688;
+const RAMP_SECONDS=.35;
+const DRAG_SECONDS=4.4;
+const SETTLED_SPEED_M_S=4.8;
+const FIRST_SPEED_M_S=pressureHeadSpeedAt(13.5);
+export const surgeSpeedAt=(frame)=>{
+  const t=Math.max(0,(frame-RELEASE_FRAME)/FPS);
+  return (1-Math.exp(-t/RAMP_SECONDS))*
+    (SETTLED_SPEED_M_S+(FIRST_SPEED_M_S-SETTLED_SPEED_M_S)*Math.exp(-t/DRAG_SECONDS));
+};
+// Analytic integral of surgeSpeedAt: deterministic for any Remotion frame.
+export const surgeDistanceAt=(frame)=>{
+  const t=Math.max(0,(frame-RELEASE_FRAME)/FPS);
+  const k=1/DRAG_SECONDS+1/RAMP_SECONDS;
+  return SETTLED_SPEED_M_S*(t-RAMP_SECONDS*(1-Math.exp(-t/RAMP_SECONDS)))+
+    (FIRST_SPEED_M_S-SETTLED_SPEED_M_S)*
+    (DRAG_SECONDS*(1-Math.exp(-t/DRAG_SECONDS))-(1-Math.exp(-k*t))/k);
+};
+// A syrup jet leaves a pressured seam, slows horizontally, then falls under gravity.
+export const jetParticleAt=(ageSeconds,headMeters,launchHeightMeters,liftMetersPerSecond)=>{
+  const t=Math.max(0,ageSeconds);
+  return {
+    forward:pressureHeadSpeedAt(headMeters)*t/(1+.48*t),
+    height:Math.max(0,launchHeightMeters+liftMetersPerSecond*t-.5*GRAVITY_M_S2*t*t)
+  };
+};
 export const shotAt = (frame)=>SHOTS.find(s=>frame>=s.a&&frame<s.b) || SHOTS[SHOTS.length-1];
 export const shotProgress=(frame)=>{const s=shotAt(frame);return clamp((frame-s.a)/(s.b-s.a));};
 export const floodFrontAt=(frame)=>{
   if(frame<115) return -13+frame*0.42;
-  if(frame<670) return -35;
-  return clamp(-32+(frame-670)*0.215,-32,33);
+  if(frame<688) return -35;
+  return clamp(-35+surgeDistanceAt(frame),-35,33);
 };
 // The surge has a rolling, irregular leading lip and a variable crest height.
 // Used by both the top water surface and the curved front curtain.
