@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import {Pen, bodyFront, townsfolk} from './toon';
 import {NOINK} from './ink';
+// Reuse the existing Bridge short's painterly shading and lighting pipeline.
+import {twoTone, TONE, CHAR, untone} from '../../../templates/bridge/shade';
+import {cardShade} from '../../../templates/bridge/cardshade';
+import {LIGHTS, LOOK} from '../../../templates/bridge/lights';
+import {cloudHD} from '../../../templates/bridge/paint';
 import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
@@ -8,13 +13,17 @@ import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushChar
 const ink = '#251d2a';
 const rgb = (v: string) => new THREE.Color(v);
 const hash = (n: number) => {const v = Math.sin(n * 128.43 + 12.57) * 43158.5453; return v - Math.floor(v);};
+// Painted-matte surfaces get the Bridge template's bold sun/shadow split.
+// Metallic or glossy props retain real PBR specular reflections.
 const mat = (color: string, roughness = .88, metalness = 0) =>
-  new THREE.MeshStandardMaterial({color, roughness, metalness});
+  metalness <= .12 && roughness >= .65
+    ? twoTone(new THREE.MeshLambertMaterial({color}))
+    : new THREE.MeshStandardMaterial({color, roughness, metalness});
 const M = {
-  iron: mat('#475364',.45,.62), trim: mat('#2a3140',.65,.45),
-  brass: mat('#bb8b57',.37,.6), wood: mat('#9c6449',.87),
-  molasses: mat('#542019',.31,.13), highlight: mat('#bd6639',.34,.1),
-  sidewalk: mat('#bcae9b'), sill: mat('#edcbb1'), glass: mat('#547890',.16,.3)
+  iron: mat('#304765',.48,.56), trim: mat('#202b44',.61,.48),
+  brass: mat('#f0ae4d',.28,.62), wood: mat('#b96d36',.85),
+  molasses: mat('#46130e',.24,.17), highlight: mat('#ee8731',.26,.12),
+  sidewalk: mat('#e9b779'), sill: mat('#ffcf8d'), glass: mat('#286eaa',.16,.32)
 };
 function box(root: THREE.Object3D, pos: [number,number,number], size: [number,number,number],
   material: THREE.Material | string, outline = false) {
@@ -41,13 +50,13 @@ function canvasTexture(w:number,h:number,draw:(g:CanvasRenderingContext2D)=>void
 }
 function brickTexture(c:string,seed:number){
   return canvasTexture(512,768,g=>{
-    g.fillStyle='#e8b99c';g.fillRect(0,0,512,768);
+    g.fillStyle='#76515d';g.fillRect(0,0,512,768);
     for(let row=0;row<28;row++) for(let col=-1;col<9;col++){
       const offset=(row%2)*32,x=col*66-offset+2,y=row*28+2;
       const v=(hash(row*73+col*17+seed)-.5)*32;
       g.fillStyle=c;g.fillRect(x,y,62,24);
-      g.fillStyle='rgba(255,229,199,.11)';g.fillRect(x+3,y+2,57,3);
-      g.fillStyle='rgba(24,14,25,.11)';g.fillRect(x+1,y+20,60,4);
+      g.fillStyle='rgba(255,244,204,.27)';g.fillRect(x+3,y+2,57,3);
+      g.fillStyle='rgba(41,17,42,.29)';g.fillRect(x+1,y+20,60,4);
       g.fillStyle='rgba(39,29,32,'+(.045+hash(row*19+col+seed)*.1)+')';
       for(let i=0;i<7;i++)g.fillRect(x+hash(i+row*40+col*17)*59,y+hash(i*17+col*35+row)*22,2,2);
       if(v>10){g.fillStyle='rgba(245,210,175,.07)';g.fillRect(x,y,60,24);}
@@ -56,13 +65,16 @@ function brickTexture(c:string,seed:number){
 }
 function cobbleTexture(){
   const t=canvasTexture(1024,1024,g=>{
-    g.fillStyle='#a69888';g.fillRect(0,0,1024,1024);
+    g.fillStyle='#555c75';g.fillRect(0,0,1024,1024);
     for(let r=0;r<29;r++)for(let c=0;c<24;c++){
       const x=c*46+(r%2)*21+hash(r*17+c)*5,y=r*37+hash(c*17+r)*4;
       const v=Math.floor(hash(r*245+c*57)*33);
-      g.fillStyle='rgb('+(139+v)+','+(128+v)+','+(115+v)+')';
+      const stones=['#e4b17f','#d69c6c','#c99075','#e4bf89','#a49fa0'];
+      const base=new THREE.Color(stones[(r*7+c*3+Math.floor(hash(r*89+c)*9))%stones.length]);
+      base.offsetHSL((hash(r*37+c*11)-.5)*.025,0,(v-16)/280);
+      g.fillStyle='#'+base.getHexString();
       g.beginPath();g.roundRect(x,y,40,31,6);g.fill();
-      g.strokeStyle='rgba(44,36,36,.3)';g.lineWidth=2;g.stroke();
+      g.strokeStyle='rgba(43,42,72,.51)';g.lineWidth=2;g.stroke();
       g.strokeStyle='rgba(250,225,200,.22)';g.beginPath();g.moveTo(x+5,y+6);g.lineTo(x+31,y+4);g.stroke();
     }
   });
@@ -70,7 +82,7 @@ function cobbleTexture(){
 }
 function woodTexture(){
   const t=canvasTexture(512,512,g=>{
-    g.fillStyle='#946549';g.fillRect(0,0,512,512);
+    g.fillStyle='#ac6538';g.fillRect(0,0,512,512);
     for(let i=0;i<43;i++){
       const y=i*13+hash(i)*3;
       g.strokeStyle=i%3===0?'rgba(35,20,18,.32)':'rgba(245,205,160,.15)';
@@ -109,15 +121,15 @@ function house(side:number,z:number,index:number,firehouse=false){
   const d=6.7+hash(index*7)*1.9;
   root.position.set(side*(13.8+(index%3)*.8),0,z);
   root.rotation.y=side>0?-Math.PI/2:Math.PI/2;
-  const colors=['#bb7460','#c89071','#b06b58','#d0a079','#af665b','#c39773'];
+  const colors=['#dc694f','#ec8b54','#b54e5e','#e5a15f','#c45f56','#d98855'];
   const c=colors[index%colors.length];
   const wall=mat('#ffffff');
   wall.map=brickTexture(c,index+3);
   box(root,[0,h/2,0],[w,h,d],wall,true);
   box(root,[0,h+.15,0],[w+.5,.34,d+.5],M.sill,true);
-  box(root,[0,h+.48,0],[w+.8,.38,d+.9],mat('#795352'),true);
+  box(root,[0,h+.48,0],[w+.8,.38,d+.9],mat('#664557'),true);
   box(root,[0,.43,d/2+.09],[w,.8,.22],mat('#695355'));
-  box(root,[0,1.5,d/2+.22],[firehouse?6:2.25,firehouse?2.8:2.65,.18],mat('#554c4e'),true);
+  box(root,[0,1.5,d/2+.22],[firehouse?6:2.25,firehouse?2.8:2.65,.18],mat('#34465f'),true);
   if(firehouse){
     box(root,[0,1.5,d/2+.34],[5.5,2.5,.09],mat('#7b8c92'));
     box(root,[0,5.8,d/2+.15],[6.3,.55,.3],M.sill,true);
@@ -142,7 +154,7 @@ function house(side:number,z:number,index:number,firehouse=false){
     for(let j=-1;j<=1;j++){
       const x=j*w*.265;
       box(root,[x,y,d/2+.12],[1.25,1.75,.13],mat('#5c4045'),true);
-      box(root,[x,y,d/2+.2],[1.03,1.51,.075],mat('#6c98a6',.22,.25));
+      box(root,[x,y,d/2+.2],[1.03,1.51,.075],mat('#347ea9',.22,.25));
       box(root,[x,y,d/2+.27],[.085,1.55,.06],M.trim);
       box(root,[x,y,d/2+.28],[1.05,.09,.07],M.trim);
       box(root,[x,y-.97,d/2+.33],[1.55,.19,.42],M.sill,true);
@@ -156,13 +168,33 @@ function house(side:number,z:number,index:number,firehouse=false){
   }
   return root;
 }
+// Five-stop, tone-map-aware gradient sky, copied from the Bridge short's art direction.
+// Two alternate palettes ensure the day shots are vivid blue and danger shots burn amber.
+const SKY_PALETTES = {
+  day: ['#b8d7f0','#84c3f0','#4298df','#2765c8','#263d96'],
+  golden: ['#ffdb89','#ffae5e','#ec8064','#b35f91','#654788'],
+} as const;
 function skyDome(){
-  const m=new THREE.Mesh(new THREE.SphereGeometry(250,36,20),new THREE.ShaderMaterial({
-    side:THREE.BackSide,depthWrite:false,
+  const material=new THREE.ShaderMaterial({
+    uniforms: {
+      c0:{value:new THREE.Color()},c1:{value:new THREE.Color()},c2:{value:new THREE.Color()},
+      c3:{value:new THREE.Color()},c4:{value:new THREE.Color()}
+    },
     vertexShader:'varying vec3 vPos;void main(){vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-    fragmentShader:'varying vec3 vPos;void main(){float h=clamp(normalize(vPos).y*1.1+0.48,0.,1.);vec3 a=vec3(.73,.83,.94);vec3 b=vec3(.18,.42,.77);gl_FragColor=vec4(mix(a,b,smoothstep(0.,1.,h)),1.);}'
-  }));
-  m.layers.set(NOINK);m.frustumCulled=false;return m;
+    fragmentShader:`uniform vec3 c0,c1,c2,c3,c4;varying vec3 vPos;
+      void main(){
+        float el=degrees(asin(clamp(normalize(vPos).y,-1.0,1.0)));
+        vec3 c=mix(c0,c1,smoothstep(0.,3.,el));
+        c=mix(c,c2,smoothstep(3.,9.,el));
+        c=mix(c,c3,smoothstep(9.,21.,el));
+        c=mix(c,c4,smoothstep(21.,48.,el));
+        gl_FragColor=vec4(c,1.);
+      }`,
+    side:THREE.BackSide,depthWrite:false,fog:false
+  });
+  const mesh=new THREE.Mesh(new THREE.SphereGeometry(550,48,28),material);
+  mesh.layers.set(NOINK);mesh.renderOrder=-1;mesh.frustumCulled=false;
+  return mesh;
 }
 class Toon {
   mesh:THREE.Mesh;
@@ -179,7 +211,7 @@ class Toon {
     this.tex=new THREE.CanvasTexture(this.cv);this.tex.colorSpace=THREE.SRGBColorSpace;
     this.tex.anisotropy=4;
     const geo=new THREE.PlaneGeometry(2.10,3.52);
-    const material=new THREE.MeshLambertMaterial({map:this.tex,alphaTest:.38,side:THREE.DoubleSide,transparent:true,depthWrite:true});
+    const material=cardShade(new THREE.MeshLambertMaterial({map:this.tex,alphaTest:.48,side:THREE.DoubleSide,depthWrite:true}));
     this.mesh=new THREE.Mesh(geo,material);
     this.mesh.layers.set(NOINK);this.mesh.position.set(home[0],1.77,home[2]);this.mesh.castShadow=false;
     parent.add(this.mesh);
@@ -218,6 +250,8 @@ class Flood {
   geom:THREE.BufferGeometry;
   frontGeom:THREE.BufferGeometry;
   glints:THREE.Mesh[]=[];
+  foam:THREE.Mesh[]=[];
+  droplets:THREE.Mesh[]=[];
   constructor(parent:THREE.Object3D){
     const nx=34,nz=43;let pos=new Float32Array((nx+1)*(nz+1)*3);let ids:number[]=[];
     for(let z=0;z<nz;z++)for(let x=0;x<nx;x++){
@@ -227,7 +261,7 @@ class Flood {
     this.geom=new THREE.BufferGeometry();this.geom.setAttribute('position',new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage));
     this.geom.setAttribute('color',new THREE.BufferAttribute(new Float32Array(pos.length),3).setUsage(THREE.DynamicDrawUsage));
     this.geom.setIndex(ids);
-    const surf=new THREE.Mesh(this.geom,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.30,metalness:.06,side:THREE.DoubleSide}));
+    const surf=new THREE.Mesh(this.geom,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.22,metalness:.12,side:THREE.DoubleSide}));
     surf.castShadow=true;surf.receiveShadow=true;this.root.add(surf);
     // Seven curved horizontal bands form a rounded, rolling liquid face.
     // The old two-row sheet was a rectangular wall in every camera angle.
@@ -241,10 +275,26 @@ class Flood {
       frontIndex.push(i,i+nf+1,i+1,i+1,i+nf+1,i+nf+2);
     }
     this.frontGeom.setIndex(frontIndex);
-    const front=new THREE.Mesh(this.frontGeom,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.28,metalness:.04,side:THREE.DoubleSide}));
+    const front=new THREE.Mesh(this.frontGeom,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.23,metalness:.08,side:THREE.DoubleSide}));
     this.root.add(front);
+    // A breaking syrup crest needs specular ribbons and airborne spray rather than
+    // a smooth, solid-looking hill. Bright amber reads as translucent viscous syrup.
+    const crestMats=[
+      new THREE.MeshStandardMaterial({color:'#ffb55d',roughness:.23,metalness:.07,emissive:'#9f370b',emissiveIntensity:.10}),
+      new THREE.MeshStandardMaterial({color:'#f5cf83',roughness:.19,metalness:.08,emissive:'#b15e24',emissiveIntensity:.12}),
+      new THREE.MeshStandardMaterial({color:'#9e391f',roughness:.25,metalness:.08})
+    ];
+    for(let k=0;k<64;k++){
+      const o=orb(this.root,[0,0,0],.13+hash(k*11)*.22,crestMats[k%crestMats.length],11,8);
+      o.castShadow=false;this.foam.push(o);
+    }
+    for(let k=0;k<46;k++){
+      const o=orb(this.root,[0,0,0],.045+hash(k*13)*.15,
+        k%3===0?crestMats[1]:crestMats[0],9,7);
+      o.castShadow=false;this.droplets.push(o);
+    }
     for(let k=0;k<39;k++){
-      const o=orb(this.root,[0,0,0],.14+hash(k)*.13,k%4===0?M.highlight:mat('#bc6b3d',.42,.1),9,7);
+      const o=orb(this.root,[0,0,0],.14+hash(k)*.13,k%4===0?M.highlight:mat('#d9662b',.34,.1),9,7);
       o.castShadow=false;this.glints.push(o);
     }
     this.root.visible=false;parent.add(this.root);
@@ -257,15 +307,17 @@ class Flood {
     const aColor=this.geom.getAttribute('color') as THREE.BufferAttribute;
     const surface=(x:number,z:number)=>{
       const p=waveProfileAt(f,x),back=Math.max(0,p.front-z);
-      return Math.max(.08,.18+p.height*Math.exp(-Math.pow(back/7.4,2))
-        +.19*Math.sin(z*.71+f*.11+x*.55)+.12*Math.cos(z*1.33-f*.14+x*.67));
+      const ridge=.38*Math.exp(-Math.pow((back-6.0)/2.3,2))*(1+Math.sin(x*.8-f*.1)*.28);
+      return Math.max(.08,.16+p.height*Math.exp(-Math.pow(back/6.1,2))+ridge
+        +.24*Math.sin(z*.71+f*.11+x*.55)+.13*Math.cos(z*1.33-f*.14+x*.67));
     };
     for(let j=0;j<=nz;j++)for(let i=0;i<=nx;i++){
       const x=-7.6+15.2*i/nx,lip=waveProfileAt(f,x).front;
       const z=lip-37+37*j/nz,y=surface(x,z),idx=j*(nx+1)+i;
       a.setXYZ(idx,x,y,z);
-      const light=clamp(.15+y*.18+.10*Math.sin(x*.91+z*.34+f*.085),.08,.97);
-      aColor.setXYZ(idx,.15+light*.37,.045+light*.21,.02+light*.10);
+      const light=clamp(.05+y*.18+.13*Math.sin(x*.91+z*.34+f*.085),.02,.92);
+      const ribbon=.5+.5*Math.cos(x*2.8+z*.55-f*.13);
+      aColor.setXYZ(idx,.085+light*.66+ribbon*.08,.012+light*.32+ribbon*.045,.008+light*.115);
     }
     a.needsUpdate=true;aColor.needsUpdate=true;this.geom.computeVertexNormals();
     const b=this.frontGeom.getAttribute('position') as THREE.BufferAttribute;
@@ -277,9 +329,10 @@ class Flood {
         const curl=.95*Math.sin(Math.PI*t)*(1+.18*Math.sin(x*.76+f*.065));
         const ripple=.09*Math.sin(x*1.8+f*.11+t*8)*Math.sin(Math.PI*t);
         b.setXYZ(idx,x,.04+(crest-.04)*t+ripple,lip+curl);
-        const streak=.08*Math.sin(x*1.15+t*19-f*.087);
-        const sheen=clamp(t*.63+streak,0,1);
-        bColor.setXYZ(idx,.17+sheen*.39,.05+sheen*.24,.025+sheen*.10);
+        const streak=.19*Math.sin(x*1.15+t*19-f*.087)+.08*Math.cos(x*2.7-t*31);
+        const sheen=clamp(t*.76+streak,0,1);
+        // Burnt-sienna undercut, molten-orange crest, golden streaked highlights.
+        bColor.setXYZ(idx,.065+sheen*.76,.008+sheen*.38,.009+sheen*.12);
       }
     }
     b.needsUpdate=true;bColor.needsUpdate=true;this.frontGeom.computeVertexNormals();
@@ -290,6 +343,27 @@ class Flood {
       p.position.set(x,h+.015+Math.sin(f*.16+i)*.035,z);
       p.scale.set(1.5+.5*hash(i),.18,.42+hash(i));
       p.rotation.y=hash(i*17)*Math.PI;
+    }
+    for(let i=0;i<this.foam.length;i++){
+      const o=this.foam[i],x=-7.25+14.5*(i+.5)/this.foam.length;
+      const lip=waveProfileAt(f,x).front;
+      const y=surface(x,lip);
+      const wiggle=Math.sin(f*.17+i*1.73),q=hash(i*17);
+      // Flattened caramel streaks skim across the curl, staggered in depth.
+      o.position.set(x,y-.10+.11*wiggle,lip+.16+.55*q);
+      o.scale.set(.7+q*1.7,.12+.07*q,.33+.45*hash(i*23));
+      o.rotation.set(0,-.28+wiggle*.15,wiggle*.23);
+    }
+    for(let i=0;i<this.droplets.length;i++){
+      const o=this.droplets[i],x=-7.0+hash(i*19)*14;
+      const lip=waveProfileAt(f,x).front;
+      const phase=(f*.075+hash(i*37)*7)%4.2;
+      const rise=Math.sin(phase/4.2*Math.PI);
+      const crest=surface(x,lip);
+      o.position.set(x+Math.sin(phase+i)*.25,crest+.16+rise*(.35+hash(i*43)*1.45),
+        lip+.28+phase*.32);
+      const d=.48+hash(i*7);
+      o.scale.set(d,d*(1+.85*rise),d);
     }
   }
 }
@@ -316,12 +390,15 @@ export class World {
   private tinyTown:THREE.Group;
   private fracture:THREE.Mesh;
   private sun:THREE.DirectionalLight;
-  private baseFog=new THREE.Fog('#b8d0ec',32,130);
+  private hemi:THREE.HemisphereLight;
+  private sky:THREE.Mesh;
+  private clouds:THREE.Mesh[]=[];
+  private baseFog=new THREE.Fog('#b8d0ec',32,160);
   constructor(){
-    this.root.add(skyDome());
-    this.root.add(new THREE.HemisphereLight('#fff1cf','#465879',2.25));
-    this.root.add(new THREE.AmbientLight('#d9e5ed',.35));
-    this.sun=new THREE.DirectionalLight('#ffdec0',3.4);
+    this.sky=skyDome();this.root.add(this.sky);
+    this.hemi=new THREE.HemisphereLight('#cfe6ff','#64527f',.55);
+    this.root.add(this.hemi);
+    this.sun=new THREE.DirectionalLight('#fff3e0',2.8);
     this.sun.position.set(-28,42,12);this.sun.target.position.set(0,0,-10);
     this.sun.castShadow=true;this.sun.shadow.mapSize.set(2048,2048);
     this.sun.shadow.camera.left=-55;this.sun.shadow.camera.right=55;
@@ -331,9 +408,9 @@ export class World {
     this.root.add(this.sun,this.sun.target);
     this.root.add(this.town,this.macro,this.plans);
     this.town.add(this.aftermath);
-    const ground=new THREE.Mesh(new THREE.PlaneGeometry(240,280),mat('#8fa280'));
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(240,280),mat('#4d967a'));
     ground.rotation.x=-Math.PI/2;ground.position.y=-.11;ground.receiveShadow=true;this.town.add(ground);
-    const streetMat=mat('#fff7e9');streetMat.map=cobbleTexture();
+    const streetMat=mat('#ffffff');streetMat.map=cobbleTexture();
     const road=new THREE.Mesh(new THREE.PlaneGeometry(16.5,215),streetMat);
     road.rotation.x=-Math.PI/2;road.position.set(0,.015,-30);road.receiveShadow=true;this.town.add(road);
     for(const side of [-1,1]){
@@ -377,7 +454,7 @@ export class World {
     }
     // Towering riveted molasses storage tank: ~15m tall.
     this.tank.position.set(11.0,0,-16);this.town.add(this.tank);
-    const tankMetal=new THREE.MeshStandardMaterial({color:'#617587',metalness:.54,roughness:.48,side:THREE.DoubleSide});
+    const tankMetal=new THREE.MeshStandardMaterial({color:'#24426e',metalness:.46,roughness:.48,side:THREE.DoubleSide});
     this.tankShell=cylinder(this.tank,5.65,14.8,[0,7.45,0],tankMetal,72);
     // A jagged partial lower wall stays anchored after the upper tank explodes.
     const tornWall=new THREE.CylinderGeometry(5.65,5.65,6.1,72,8,true,.12,Math.PI*1.7);
@@ -433,12 +510,16 @@ export class World {
       const homes: [number,number,number][]=[[-3,0,13],[2.4,0,0],[-2.8,0,-12],[4,0,24],[-4.5,0,28],[1.4,0,-25],[0,0,34]];
       this.people.push(new Toon(this.town,i,homes[i]));
     }
-    const cloudMap=cloudTexture();
-    const cloudMaterial=new THREE.MeshBasicMaterial({map:cloudMap,transparent:true,opacity:.73,depthWrite:false,side:THREE.DoubleSide,fog:false});
-    for(let i=0;i<7;i++){
-      const cloud=new THREE.Mesh(new THREE.PlaneGeometry(13+hash(i)*8,3.5+hash(i*3)*2.5),cloudMaterial);
-      cloud.position.set(-24+i*8.5,16+hash(i*9)*9,-65-i*5);
-      cloud.layers.set(NOINK);cloud.renderOrder=-1;this.town.add(cloud);
+    // Actual Bridge painted cloud textures: sunlit puffy crowns and lilac shaded undersides.
+    for(let i=0;i<9;i++){
+      const cloud=new THREE.Mesh(
+        new THREE.PlaneGeometry(17+hash(i)*11,6+hash(i*3)*4),
+        new THREE.MeshBasicMaterial({map:cloudHD(i,LOOK.day.cloud),transparent:true,
+          opacity:.94,depthWrite:false,side:THREE.DoubleSide,fog:false})
+      );
+      cloud.position.set(-35+i*9.5,17+hash(i*9)*14,-70-i*8);
+      cloud.layers.set(NOINK);cloud.renderOrder=-.5;
+      this.clouds.push(cloud);this.town.add(cloud);
     }
     // Torn wood, syrup pools and scattered debris remain after the flood recedes.
     for(let i=0;i<18;i++){
@@ -511,13 +592,40 @@ export class World {
     this.firehouseDebris.visible=shot.id==='firehouse'||shot.id==='aftermath';
     cam.position.set(info.pos[0],info.pos[1],info.pos[2]);cam.fov=info.fov;
     cam.lookAt(new THREE.Vector3(info.look[0],info.look[1],info.look[2]));cam.rotateZ(info.roll);cam.updateProjectionMatrix();
-    scene.fog=this.baseFog;
+    scene.fog=this.baseFog;scene.background=null;
     const golden=shot.light==='gold';
-    this.sun.color.set(golden?'#ffc08a':'#fff1d5');
-    this.sun.intensity=golden?3.15:3.6;
+    const preset=golden?LIGHTS.golden:LIGHTS.day;
+    const look=golden?LOOK.golden:LOOK.day;
+    this.sun.color.set(preset.sunCol);
+    this.sun.intensity=preset.sunI;
+    // Low-angle golden backlight, high-angle daylight, matching the Bridge template.
     this.sun.position.set(golden?19:-31,golden?19:49,golden?15:11);
-    this.baseFog.color.copy(rgb(golden?'#ead0ae':'#b8d0ec'));
-    if(shot.place!=='town')this.baseFog.near=90;else this.baseFog.near=32;
+    this.hemi.intensity=preset.hemiI;
+    TONE.uLitCol.value.set(...preset.lit);
+    TONE.uShadeCol.value.set(...preset.shade);
+    TONE.uShadeLift.value.set(...preset.lift);
+    TONE.uLambert.value=preset.lambert;
+    TONE.uSideK.value=preset.sideK;
+    TONE.uTerm.value=preset.term;
+    TONE.uBounce.value.set(...look.bounce);
+    TONE.uSat.value=golden?1.25:1.22;
+    CHAR.uCharTint.value.set(...preset.charTint);
+    CHAR.uCharShade.value=preset.charShade;
+    CHAR.uGrad.value=preset.charGrad;
+    CHAR.uBodyGrad.value=preset.bodyGrad;
+    CHAR.uSideTint.value.set(...preset.sideTint);
+    const skyMat=this.sky.material as THREE.ShaderMaterial;
+    const skyColors=golden?SKY_PALETTES.golden:SKY_PALETTES.day;
+    skyColors.forEach((color,i)=>untone(color,skyMat.uniforms['c'+i].value));
+    this.sky.position.copy(cam.position);
+    untone(preset.fog,this.baseFog.color);
+    this.baseFog.near=shot.place==='town'?40:125;
+    this.baseFog.far=shot.place==='town'?200:350;
+    for(let i=0;i<this.clouds.length;i++){
+      const cloudMat=this.clouds[i].material as THREE.MeshBasicMaterial;
+      const targetMap=cloudHD(i,look.cloud);
+      if(cloudMat.map!==targetMap){cloudMat.map=targetMap;cloudMat.needsUpdate=true;}
+    }
     const tankState=tankStateAt(f);
     const burst=!tankState.intact;
     this.tankShell.visible=tankState.intact;
@@ -559,9 +667,9 @@ export class World {
     });
     const damaged=shot.id==='firehouse'||shot.id==='aftermath';
     const tilt=damaged?smooth((f-1030)/60):0;
-    this.firehouse.rotation.z=-.19*tilt;
-    this.firehouse.position.x=-14+tilt*.3;
-    this.firehouse.position.y=-.36*tilt;
+    this.firehouse.rotation.z=-.30*tilt;
+    this.firehouse.position.x=-14+tilt*1.15;
+    this.firehouse.position.y=-.75*tilt;
     const dropY=(f-120)%55/55;
     this.spoonDrop.position.set(-2.2,2.2-1.95*dropY,-1.9);
     this.spoonDrop.scale.set(.8,1.3,.85);
