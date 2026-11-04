@@ -86,3 +86,59 @@ test('the rupture starts on the tank side, then spreads across the whole street'
   assert.ok(initial.trail<downstream.trail,
     'a full-length flood sheet appears instantaneously at rupture');
 });
+
+test('tank steel fragments obey gravity, hit the street, and stop travelling',()=>{
+  assert.equal(typeof physics.fragmentFlightAt,'function','missing deterministic falling debris');
+  for(let i=0;i<14;i++){
+    const launched=physics.fragmentFlightAt(704,i);
+    const landed=physics.fragmentFlightAt(860,i);
+    const later=physics.fragmentFlightAt(1000,i);
+    assert.ok(launched.y>0.3,'metal fragment starts underground');
+    assert.ok(landed.landed,'metal fragment '+i+' keeps hovering after six seconds');
+    assert.ok(landed.y>=0.25 && landed.y<0.65,'fragment landed off the street surface');
+    assert.ok(Math.abs(later.x-landed.x)<0.001 && Math.abs(later.z-landed.z)<0.001,
+      'landed metal slides indefinitely');
+    assert.equal(later.y,landed.y,'landed metal sinks or bounces forever');
+  }
+});
+
+test('viscous liquid stays attached to the tank rupture before reaching the street',()=>{
+  assert.equal(typeof physics.outflowSheetPointAt,'function','missing tank-to-street liquid connection');
+  const start=physics.outflowSheetPointAt(740,0);
+  const end=physics.outflowSheetPointAt(740,1);
+  assert.ok(Math.abs(start.x-7.3)<0.15 && Math.abs(start.z+12)<0.15,
+    'outflow does not start at the tank wall');
+  assert.ok(start.y>3.5,'molasses does not leave an elevated breach');
+  assert.ok(end.y<0.5 && end.z>-9,'molasses does not descend to the street');
+  const newborn=physics.outflowSheetPointAt(688,1);
+  assert.ok(Math.hypot(newborn.x-start.x,newborn.z-start.z)<0.2,
+    'the whole liquid ribbon appears fully extended at the burst frame');
+});
+
+test('the spoon geometry has a recessed bowl instead of a flat convex disc',()=>{
+  assert.equal(typeof physics.spoonBowlHeightAt,'function','missing concave bowl profile');
+  const middle=physics.spoonBowlHeightAt(0);
+  const inner=physics.spoonBowlHeightAt(0.6);
+  const edge=physics.spoonBowlHeightAt(1);
+  assert.ok(middle<inner && inner<edge,'the bowl does not curve upward to its rim');
+  assert.ok(edge-middle>0.25,'the metal spoon is almost flat');
+});
+
+test('the rupture shot frames the broken lower tank rather than only flying panels',()=>{
+  const cam=physics.cameraAt(735);
+  assert.ok(cam.look[1]<5.5,'camera aims above the surviving tank wall');
+  assert.ok(Math.hypot(cam.look[0]-7.3,cam.look[2]+12)<3.5,
+    'camera is not looking near the actual breach');
+});
+
+test('wave face curls forward near the crest and rejoins the surface',()=>{
+  assert.equal(typeof physics.waveFoldAt,'function','missing animated breaking-crest profile');
+  const low=physics.waveFoldAt(820,1,.3);
+  const upper=physics.waveFoldAt(820,1,.72);
+  const start=physics.waveFoldAt(820,1,0);
+  const end=physics.waveFoldAt(820,1,1);
+  assert.ok(upper.forward>low.forward+.4,'lip does not turn over near the top');
+  assert.ok(upper.sag>.1,'liquid crest has no downward folding curl');
+  assert.ok(Math.abs(start.forward)<.00001&&Math.abs(end.forward)<.00001,
+    'breaking face does not connect to the road and top sheet');
+});
