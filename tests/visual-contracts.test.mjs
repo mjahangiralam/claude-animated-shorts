@@ -37,20 +37,30 @@ test('the deadly surge camera stays ahead of the wave so its approach remains vi
   assert.ok(cam.look[2]>8,'camera is aimed far beyond the approaching wave');
 });
 
-test('the firehouse impact camera does not look past intervening buildings',()=>{
+test('the entire firehouse stays in a wide street-side composition',()=>{
   const cam=timeline.cameraAt(1100);
-  assert.ok(cam.pos[2]<4,'camera stands behind foreground buildings');
-  assert.ok(cam.pos[0]>-7,'camera should be on the street-facing side of the firehouse');
+  assert.ok(Math.hypot(cam.pos[0]+14,cam.pos[2]+9)>20,
+    'camera is too close and crops the firehouse facade');
+  assert.ok(cam.pos[0]>1,'camera should see the facade from across the street');
 });
 
 test('the closeup camera shows the spoon at readable size',()=>{
   const cam=timeline.cameraAt(180);
   assert.ok(cam.pos[2]<11,'spoon camera too far away');
   assert.ok(cam.fov<=39,'spoon camera wide angle hides the bowl detail');
+  const down=Math.atan2(cam.pos[1]-cam.look[1],
+    Math.hypot(cam.pos[0]-cam.look[0],cam.pos[2]-cam.look[2]));
+  assert.ok(down>.4,'spoon camera is too low and shows the horizon instead of the handle');
 });
 
 test('ruptured tank retains a broken piece of the lower steel shell',()=>{
   assert.equal(typeof timeline.tankStateAt,'function');
   assert.deepEqual(timeline.tankStateAt(675),{intact:true,remnant:false});
   assert.deepEqual(timeline.tankStateAt(730),{intact:false,remnant:true});
+});
+
+test('runners too close to the flood camera are hidden to avoid giant cutouts',()=>{
+  assert.equal(typeof timeline.showRushCharacter,'function');
+  assert.equal(timeline.showRushCharacter(35,33),false);
+  assert.equal(timeline.showRushCharacter(35,15),true);
 });
