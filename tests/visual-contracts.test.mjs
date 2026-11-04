@@ -98,3 +98,9 @@ test('painterly lighting is not double-saturated by the old full-strength film g
   assert.ok(tone,'missing world saturation setting');
   assert.ok(+tone[1]<=1.1&&+tone[2]<=1.1,'world color saturation is stacked over full grade');
 });
+
+test('the rupture and rolling crest are driven by the pressure-and-drag model',()=>{
+  assert.match(sceneSource,/jetParticleAt\(/,'spray is not pressure-driven');
+  assert.match(sceneSource,/surgeSpeedAt\(/,'crest does not respond to the surge speed');
+  assert.match(sceneSource,/const active=f<115\|\|\(f>=688&&f<1450\)/,'flood starts before the rupture');
+});
