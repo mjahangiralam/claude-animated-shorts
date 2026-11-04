@@ -53,6 +53,14 @@ bash scripts/render-mac.sh preview
 
 The 540 × 960 preview will be saved at out/boston-preview-with-voice.mp4. It includes narration, synthesized original cinematic music and sound effects.
 
+Generate a contact sheet to compare the visuals with the example frames and upload it here:
+
+~~~bash
+bash scripts/preview-frames.sh
+~~~
+
+This produces out/boston-3d-contact-sheet.jpg with nine representative frames.
+
 After inspecting the preview:
 
 ~~~bash
