@@ -20,10 +20,10 @@ const mat = (color: string, roughness = .88, metalness = 0) =>
     ? twoTone(new THREE.MeshLambertMaterial({color}))
     : new THREE.MeshStandardMaterial({color, roughness, metalness});
 const M = {
-  iron: mat('#304765',.48,.56), trim: mat('#202b44',.61,.48),
-  brass: mat('#f0ae4d',.28,.62), wood: mat('#b96d36',.85),
-  molasses: mat('#46130e',.24,.17), highlight: mat('#ee8731',.26,.12),
-  sidewalk: mat('#e9b779'), sill: mat('#ffcf8d'), glass: mat('#286eaa',.16,.32)
+  iron: mat('#4c5b6d',.48,.56), trim: mat('#2f3a50',.61,.48),
+  brass: mat('#caab77',.28,.62), wood: mat('#a0785c',.85),
+  molasses: mat('#461c16',.29,.12), highlight: mat('#c58053',.28,.08),
+  sidewalk: mat('#d8c0a8'), sill: mat('#edcfb1'), glass: mat('#5685a0',.16,.32)
 };
 function box(root: THREE.Object3D, pos: [number,number,number], size: [number,number,number],
   material: THREE.Material | string, outline = false) {
@@ -50,13 +50,13 @@ function canvasTexture(w:number,h:number,draw:(g:CanvasRenderingContext2D)=>void
 }
 function brickTexture(c:string,seed:number){
   return canvasTexture(512,768,g=>{
-    g.fillStyle='#76515d';g.fillRect(0,0,512,768);
+    g.fillStyle='#ad9290';g.fillRect(0,0,512,768);
     for(let row=0;row<28;row++) for(let col=-1;col<9;col++){
       const offset=(row%2)*32,x=col*66-offset+2,y=row*28+2;
       const v=(hash(row*73+col*17+seed)-.5)*32;
       g.fillStyle=c;g.fillRect(x,y,62,24);
-      g.fillStyle='rgba(255,244,204,.27)';g.fillRect(x+3,y+2,57,3);
-      g.fillStyle='rgba(41,17,42,.29)';g.fillRect(x+1,y+20,60,4);
+      g.fillStyle='rgba(255,244,216,.18)';g.fillRect(x+3,y+2,57,3);
+      g.fillStyle='rgba(58,38,51,.19)';g.fillRect(x+1,y+20,60,4);
       g.fillStyle='rgba(39,29,32,'+(.045+hash(row*19+col+seed)*.1)+')';
       for(let i=0;i<7;i++)g.fillRect(x+hash(i+row*40+col*17)*59,y+hash(i*17+col*35+row)*22,2,2);
       if(v>10){g.fillStyle='rgba(245,210,175,.07)';g.fillRect(x,y,60,24);}
@@ -65,16 +65,16 @@ function brickTexture(c:string,seed:number){
 }
 function cobbleTexture(){
   const t=canvasTexture(1024,1024,g=>{
-    g.fillStyle='#555c75';g.fillRect(0,0,1024,1024);
+    g.fillStyle='#898a91';g.fillRect(0,0,1024,1024);
     for(let r=0;r<29;r++)for(let c=0;c<24;c++){
       const x=c*46+(r%2)*21+hash(r*17+c)*5,y=r*37+hash(c*17+r)*4;
       const v=Math.floor(hash(r*245+c*57)*33);
-      const stones=['#e4b17f','#d69c6c','#c99075','#e4bf89','#a49fa0'];
+      const stones=['#ccb79c','#c3af99','#b5a8a5','#d0bfa6','#afb1b6'];
       const base=new THREE.Color(stones[(r*7+c*3+Math.floor(hash(r*89+c)*9))%stones.length]);
       base.offsetHSL((hash(r*37+c*11)-.5)*.025,0,(v-16)/280);
       g.fillStyle='#'+base.getHexString();
       g.beginPath();g.roundRect(x,y,40,31,6);g.fill();
-      g.strokeStyle='rgba(43,42,72,.51)';g.lineWidth=2;g.stroke();
+      g.strokeStyle='rgba(61,59,73,.30)';g.lineWidth=2;g.stroke();
       g.strokeStyle='rgba(250,225,200,.22)';g.beginPath();g.moveTo(x+5,y+6);g.lineTo(x+31,y+4);g.stroke();
     }
   });
@@ -82,7 +82,7 @@ function cobbleTexture(){
 }
 function woodTexture(){
   const t=canvasTexture(512,512,g=>{
-    g.fillStyle='#ac6538';g.fillRect(0,0,512,512);
+    g.fillStyle='#ac795a';g.fillRect(0,0,512,512);
     for(let i=0;i<43;i++){
       const y=i*13+hash(i)*3;
       g.strokeStyle=i%3===0?'rgba(35,20,18,.32)':'rgba(245,205,160,.15)';
@@ -121,7 +121,7 @@ function house(side:number,z:number,index:number,firehouse=false){
   const d=6.7+hash(index*7)*1.9;
   root.position.set(side*(13.8+(index%3)*.8),0,z);
   root.rotation.y=side>0?-Math.PI/2:Math.PI/2;
-  const colors=['#dc694f','#ec8b54','#b54e5e','#e5a15f','#c45f56','#d98855'];
+  const colors=['#c68070','#d2a084','#b47473','#cba486','#b7776b','#c19475'];
   const c=colors[index%colors.length];
   const wall=mat('#ffffff');
   wall.map=brickTexture(c,index+3);
@@ -171,8 +171,8 @@ function house(side:number,z:number,index:number,firehouse=false){
 // Five-stop, tone-map-aware gradient sky, copied from the Bridge short's art direction.
 // Two alternate palettes ensure the day shots are vivid blue and danger shots burn amber.
 const SKY_PALETTES = {
-  day: ['#b8d7f0','#84c3f0','#4298df','#2765c8','#263d96'],
-  golden: ['#ffdb89','#ffae5e','#ec8064','#b35f91','#654788'],
+  day: ['#c2d5e7','#a4c5df','#77add6','#598ec2','#4576ab'],
+  golden: ['#f3d7b5','#eac2a0','#d7a18e','#b793a2','#857a9a'],
 } as const;
 function skyDome(){
   const material=new THREE.ShaderMaterial({
@@ -280,9 +280,9 @@ class Flood {
     // A breaking syrup crest needs specular ribbons and airborne spray rather than
     // a smooth, solid-looking hill. Bright amber reads as translucent viscous syrup.
     const crestMats=[
-      new THREE.MeshStandardMaterial({color:'#ffb55d',roughness:.23,metalness:.07,emissive:'#9f370b',emissiveIntensity:.10}),
-      new THREE.MeshStandardMaterial({color:'#f5cf83',roughness:.19,metalness:.08,emissive:'#b15e24',emissiveIntensity:.12}),
-      new THREE.MeshStandardMaterial({color:'#9e391f',roughness:.25,metalness:.08})
+      new THREE.MeshStandardMaterial({color:'#c79b67',roughness:.28,metalness:.05,emissive:'#704025',emissiveIntensity:.06}),
+      new THREE.MeshStandardMaterial({color:'#e1be8c',roughness:.25,metalness:.05,emissive:'#805d38',emissiveIntensity:.06}),
+      new THREE.MeshStandardMaterial({color:'#854632',roughness:.29,metalness:.04})
     ];
     for(let k=0;k<64;k++){
       const o=orb(this.root,[0,0,0],.13+hash(k*11)*.22,crestMats[k%crestMats.length],11,8);
@@ -294,7 +294,7 @@ class Flood {
       o.castShadow=false;this.droplets.push(o);
     }
     for(let k=0;k<39;k++){
-      const o=orb(this.root,[0,0,0],.14+hash(k)*.13,k%4===0?M.highlight:mat('#d9662b',.34,.1),9,7);
+      const o=orb(this.root,[0,0,0],.14+hash(k)*.13,k%4===0?M.highlight:mat('#ae7453',.36,.08),9,7);
       o.castShadow=false;this.glints.push(o);
     }
     this.root.visible=false;parent.add(this.root);
@@ -408,7 +408,7 @@ export class World {
     this.root.add(this.sun,this.sun.target);
     this.root.add(this.town,this.macro,this.plans);
     this.town.add(this.aftermath);
-    const ground=new THREE.Mesh(new THREE.PlaneGeometry(240,280),mat('#4d967a'));
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(240,280),mat('#7c9d8b'));
     ground.rotation.x=-Math.PI/2;ground.position.y=-.11;ground.receiveShadow=true;this.town.add(ground);
     const streetMat=mat('#ffffff');streetMat.map=cobbleTexture();
     const road=new THREE.Mesh(new THREE.PlaneGeometry(16.5,215),streetMat);
@@ -454,7 +454,7 @@ export class World {
     }
     // Towering riveted molasses storage tank: ~15m tall.
     this.tank.position.set(11.0,0,-16);this.town.add(this.tank);
-    const tankMetal=new THREE.MeshStandardMaterial({color:'#24426e',metalness:.46,roughness:.48,side:THREE.DoubleSide});
+    const tankMetal=new THREE.MeshStandardMaterial({color:'#4c6177',metalness:.43,roughness:.52,side:THREE.DoubleSide});
     this.tankShell=cylinder(this.tank,5.65,14.8,[0,7.45,0],tankMetal,72);
     // A jagged partial lower wall stays anchored after the upper tank explodes.
     const tornWall=new THREE.CylinderGeometry(5.65,5.65,6.1,72,8,true,.12,Math.PI*1.7);
@@ -608,7 +608,7 @@ export class World {
     TONE.uSideK.value=preset.sideK;
     TONE.uTerm.value=preset.term;
     TONE.uBounce.value.set(...look.bounce);
-    TONE.uSat.value=golden?1.25:1.22;
+    TONE.uSat.value=golden?1.04:1.04;
     CHAR.uCharTint.value.set(...preset.charTint);
     CHAR.uCharShade.value=preset.charShade;
     CHAR.uGrad.value=preset.charGrad;
