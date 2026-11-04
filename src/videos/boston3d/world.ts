@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {Pen, bodyFront, townsfolk} from './toon';
 import {NOINK} from './ink';
-import {cameraAt, waveProfileAt, shotAt, shotProgress, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -190,11 +190,12 @@ class Toon {
     const step=Math.floor(f/3);
     this.mesh.visible=active;this.shadow.visible=active;
     if(!active)return;
-    const t=panic? Math.max(0,(f-682)/30):f/30;
+    const hookEscape=panic&&f<115;
+    const run=hookEscape||(panic&&f>682&&f<1170);
+    const t=hookEscape?f/12:panic?Math.max(0,(f-682)/30):f/30;
     const phase=(t*1.35+this.seed*.14)%1;
-    const run=panic&&f>682&&f<1170;
-    const x=this.home.x+(run?Math.min(9,(f-682)*.037)*((this.seed%2)?-1:1):.25*Math.sin(f*.013+this.seed));
-    const z=this.home.z+(run?Math.min(35,(f-682)*.11):.14*Math.cos(f*.015+this.seed));
+    const x=this.home.x+(hookEscape?.12*Math.sin(f*.12+this.seed):run?Math.min(9,(f-682)*.037)*((this.seed%2)?-1:1):.25*Math.sin(f*.013+this.seed));
+    const z=this.home.z+(hookEscape?Math.min(4,f*.03):run?Math.min(35,(f-682)*.11):.14*Math.cos(f*.015+this.seed));
     this.mesh.position.set(x,1.77+(run?Math.sin(f*.18)*.08:0),z);
     this.shadow.position.set(x,.038,z);
     this.mesh.rotation.y=Math.atan2(cam.position.x-x,cam.position.z-z);
@@ -298,10 +299,12 @@ export class World {
   macro=new THREE.Group();
   plans=new THREE.Group();
   aftermath=new THREE.Group();
+  firehouseDebris=new THREE.Group();
   private people:Toon[]=[];
   private flood:Flood;
   private tank=new THREE.Group();
   private tankShell:THREE.Mesh;
+  private tankRemnant:THREE.Mesh;
   private shellFragments:THREE.Mesh[]=[];
   private tankBands=new THREE.Group();
   private spray:THREE.Mesh[]=[];
@@ -343,6 +346,15 @@ export class World {
       }
     }
     this.firehouse=house(-1,-9,21,true);this.town.add(this.firehouse);
+    this.town.add(this.firehouseDebris);
+    for(let i=0;i<22;i++){
+      const x=-12+hash(i*17)*5.2,z=-16+hash(i*31)*13;
+      const debris=box(this.firehouseDebris,[x,.2+hash(i)*.35,z],
+        [.6+hash(i*13)*1.1,.25+hash(i*5)*.6,.5+hash(i*19)*1.3],
+        i%4===0?M.wood:i%3===0?M.sill:mat('#b87b61'));
+      debris.rotation.set((hash(i*7)-.5)*.5,hash(i*11)*3.14,(hash(i*23)-.5)*.5);
+    }
+    this.firehouseDebris.visible=false;
     // Suspended overhead iron railway as a richly layered midground silhouette.
     for(const h of [10.6,11.35]) box(this.town,[0,h,-37],[39,.18,.39],M.iron,true);
     for(let i=-20;i<=20;i+=3.1){
@@ -367,6 +379,18 @@ export class World {
     this.tank.position.set(11.0,0,-16);this.town.add(this.tank);
     const tankMetal=new THREE.MeshStandardMaterial({color:'#617587',metalness:.54,roughness:.48,side:THREE.DoubleSide});
     this.tankShell=cylinder(this.tank,5.65,14.8,[0,7.45,0],tankMetal,72);
+    // A jagged partial lower wall stays anchored after the upper tank explodes.
+    const tornWall=new THREE.CylinderGeometry(5.65,5.65,8.2,72,8,true,.12,Math.PI*1.7);
+    const edgeVerts=tornWall.getAttribute('position') as THREE.BufferAttribute;
+    for(let i=0;i<edgeVerts.count;i++){
+      const y=edgeVerts.getY(i);
+      if(y>3.8){edgeVerts.setY(i,y-1.4*hash(i*13));}
+    }
+    tornWall.computeVertexNormals();
+    this.tankRemnant=new THREE.Mesh(tornWall,tankMetal);
+    this.tankRemnant.position.set(0,4.25,0);
+    this.tankRemnant.castShadow=true;this.tankRemnant.receiveShadow=true;
+    this.tankRemnant.visible=false;this.tank.add(this.tankRemnant);
     this.tank.add(this.tankBands);
     cylinder(this.tankBands,5.82,.4,[0,.3,0],M.trim);
     cylinder(this.tankBands,5.82,.35,[0,14.95,0],M.trim);
@@ -428,6 +452,13 @@ export class World {
       const plank=box(this.aftermath,[x,.17,z],[.24,.22,1.5+hash(i)*2.6],M.wood);
       plank.rotation.y=hash(i*37)*Math.PI;plank.rotation.z=(hash(i*53)-.5)*.2;
     }
+    // Several broader, irregular pools make the aftermath read as a flooded street.
+    for(let i=0;i<12;i++){
+      const x=-3.4+hash(i*37)*6.8,z=-14+hash(i*43)*55;
+      const pool=orb(this.aftermath,[x,.047,z],1.7+hash(i*17)*1.6,M.molasses,28,10);
+      pool.scale.set(1.7+hash(i*29),.023,1.7+hash(i*19));
+      pool.rotation.y=hash(i*13)*Math.PI;pool.castShadow=false;
+    }
     this.aftermath.visible=false;
     // Real modeled teaspoon with viscous strand and a painted wood table.
     const tableMaterial=mat('#ffffff');tableMaterial.map=woodTexture();
@@ -435,7 +466,11 @@ export class World {
     const spoon=new THREE.Group();spoon.position.set(-.9,3.25,-1.7);
     this.macro.add(spoon);
     const bowl=orb(spoon,[-1.1,0,-.3],1.35,new THREE.MeshStandardMaterial({color:'#c4d6d8',roughness:.22,metalness:.88}),24,16);
-    bowl.scale.set(1.35,.21,.8);
+    bowl.scale.set(1.35,.34,.8);
+    const silverRim=new THREE.Mesh(new THREE.TorusGeometry(1.27,.075,9,48),
+      new THREE.MeshStandardMaterial({color:'#dce7e9',metalness:.88,roughness:.20}));
+    silverRim.rotation.x=Math.PI/2;silverRim.scale.set(1.4,.83,1);
+    silverRim.position.set(-1.1,.23,-.3);spoon.add(silverRim);
     const syrup=orb(spoon,[-1.05,.23,-.32],1.08,M.molasses,32,16);syrup.scale.set(1.45,.16,.84);
     const shaft=cylinder(spoon,.17,5.8,[1.95,.15,-.35],M.brass,16);
     shaft.rotation.z=-Math.PI/2.5;
@@ -472,6 +507,7 @@ export class World {
     this.macro.visible=shot.place==='macro';
     this.plans.visible=shot.place==='blueprint';
     this.aftermath.visible=shot.id==='aftermath';
+    this.firehouseDebris.visible=shot.id==='firehouse'||shot.id==='aftermath';
     cam.position.set(info.pos[0],info.pos[1],info.pos[2]);cam.fov=info.fov;
     cam.lookAt(new THREE.Vector3(info.look[0],info.look[1],info.look[2]));cam.rotateZ(info.roll);cam.updateProjectionMatrix();
     scene.fog=this.baseFog;
@@ -481,9 +517,11 @@ export class World {
     this.sun.position.set(golden?19:-31,golden?19:49,golden?15:11);
     this.baseFog.color.copy(rgb(golden?'#ead0ae':'#b8d0ec'));
     if(shot.place!=='town')this.baseFog.near=90;else this.baseFog.near=32;
-    const burst=f>=688;
-    this.tankShell.visible=!burst;
-    this.tankBands.visible=!burst;
+    const tankState=tankStateAt(f);
+    const burst=!tankState.intact;
+    this.tankShell.visible=tankState.intact;
+    this.tankRemnant.visible=tankState.remnant;
+    this.tankBands.visible=tankState.intact;
     for(let i=0;i<this.shellFragments.length;i++){
       const x=this.shellFragments[i],b=smooth((f-688-i*1.5)/45);
       const theta=i*2.39996,sy=3+hash(i*13)*9.6;
@@ -509,7 +547,8 @@ export class World {
     if(this.paintMask.visible)this.paintMask.scale.set(.3+smooth((f-540)/95)*.7,.5+smooth((f-540)/95),.13);
     this.flood.update(f);
     const panic=shot.id==='hook'||shot.id==='rush'||shot.id==='firehouse'||shot.id==='rupture';
-    this.people.forEach((person,i)=>person.update(f,cam,shot.place==='town'&&(
+    this.people.forEach((person,i)=>person.update(f,cam,shot.place==='town'&&
+      !(shot.id==='tank'&&person.home.z>20)&&(
       shot.id==='hook'||shot.id==='tank'||shot.id==='rupture'||shot.id==='rush'||
       shot.id==='firehouse'||shot.id==='aftermath'),panic&&i<5));
     const damaged=shot.id==='firehouse'||shot.id==='aftermath';
