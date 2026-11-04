@@ -28,3 +28,29 @@ test('the molasses front has an irregular rolling silhouette, not a straight wal
   for(const p of profile)assert.ok(Number.isFinite(p.front)&&p.height>1.5);
 });
 
+
+test('the deadly surge camera stays ahead of the wave so its approach remains visible',()=>{
+  const frame=910;
+  const cam=timeline.cameraAt(frame);
+  assert.ok(cam.pos[2]-timeline.floodFrontAt(frame)>13,
+    'camera has been overtaken by the wave before the action can be seen');
+  assert.ok(cam.look[2]>8,'camera is aimed far beyond the approaching wave');
+});
+
+test('the firehouse impact camera does not look past intervening buildings',()=>{
+  const cam=timeline.cameraAt(1100);
+  assert.ok(cam.pos[2]<4,'camera stands behind foreground buildings');
+  assert.ok(cam.pos[0]>-7,'camera should be on the street-facing side of the firehouse');
+});
+
+test('the closeup camera shows the spoon at readable size',()=>{
+  const cam=timeline.cameraAt(180);
+  assert.ok(cam.pos[2]<11,'spoon camera too far away');
+  assert.ok(cam.fov<=39,'spoon camera wide angle hides the bowl detail');
+});
+
+test('ruptured tank retains a broken piece of the lower steel shell',()=>{
+  assert.equal(typeof timeline.tankStateAt,'function');
+  assert.deepEqual(timeline.tankStateAt(675),{intact:true,remnant:false});
+  assert.deepEqual(timeline.tankStateAt(730),{intact:false,remnant:true});
+});
