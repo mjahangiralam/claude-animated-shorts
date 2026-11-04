@@ -749,7 +749,7 @@ export class World {
     this.tankRemnant.visible=tankState.remnant;
     this.tankSyrup.visible=tankState.remnant;
     if(this.tankSyrup.visible){
-      const level=tankLiquidLevelAt(f),bottom=.20;
+      const level=tankLiquidLevelAt(f),bottom=.06;
       this.tankSyrup.scale.y=level-bottom;
       this.tankSyrup.position.y=(level+bottom)*.5;
     }
