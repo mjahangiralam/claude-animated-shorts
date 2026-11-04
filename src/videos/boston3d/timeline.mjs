@@ -82,20 +82,39 @@ export const fragmentFlightAt=(frame,index)=>{
     landed:t>=landTime
   };
 };
-// A visible syrup curtain physically connects the elevated breach to the road.
+// The tank remains partly filled after the shell opens. The surface drops as
+// the pressurized reservoir empties, but stays above the rupture outlet.
+export const tankLiquidLevelAt=(frame)=>7.8-2.2*smooth((frame-688)/500);
+// The source is *inside* the steel shell, not a tube suspended beside it.
+// It crosses the torn wall and reaches only as far as the advancing flood.
 export const outflowSheetPointAt=(frame,fraction)=>{
-  const reach=smooth((frame-688)/(FPS*.85));
-  const t=clamp(fraction)*reach;
-  return {
-    x:TANK_BREACH.x-2.9*t,
-    y:.17+4.5*(1-smooth(t))+.11*Math.sin(Math.PI*t)*Math.sin(frame*.16),
-    z:TANK_BREACH.z+7.1*t
-  };
+  const t=clamp(fraction);
+  const source={x:9.05,y:5.15,z:-13.45};
+  const mouth={x:TANK_BREACH.x,y:4.67,z:TANK_BREACH.z};
+  if(t<=.2){
+    const u=t/.2;
+    return {x:source.x+(mouth.x-source.x)*u,
+      y:source.y+(mouth.y-source.y)*u,
+      z:source.z+(mouth.z-source.z)*u};
+  }
+  // Keep the outlet tip behind the *local* rolling crest: its uneven front
+  // is not at the same Z position across the width of the street.
+  let reach=clamp((floodFrontAt(frame)-TANK_BREACH.z-.3)/7.1);
+  for(let i=0;i<5;i++){
+    const tipX=mouth.x-2.9*reach;
+    reach=clamp((waveProfileAt(frame,tipX).front-mouth.z-.3)/7.1);
+  }
+  const travel=7.1*reach;
+  const u=(t-.2)/.8;
+  return {x:mouth.x-2.9*reach*u,
+    y:mouth.y+(.17+4.5*(1-smooth(reach))-mouth.y)*u+
+      .08*Math.sin(Math.PI*u)*Math.sin(frame*.16),
+    z:mouth.z+travel*u};
 };
 // An oval, rounded cross-section gives the tank discharge actual volume.
 export const outflowCrossSectionAt=(frame,fraction,angle)=>{
   const center=outflowSheetPointAt(frame,fraction);
-  const radius=(.46+.54*smooth(fraction))*smooth((frame-688)/18);
+  const radius=(.82+.88*smooth(fraction))*smooth((frame-688)/18);
   return {
     x:center.x+radius*Math.cos(angle),
     y:center.y+radius*.62*Math.sin(angle),
