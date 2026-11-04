@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {Pen, bodyFront, townsfolk} from './toon';
 import {NOINK} from './ink';
-import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, showRushCharacter, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -380,15 +380,15 @@ export class World {
     const tankMetal=new THREE.MeshStandardMaterial({color:'#617587',metalness:.54,roughness:.48,side:THREE.DoubleSide});
     this.tankShell=cylinder(this.tank,5.65,14.8,[0,7.45,0],tankMetal,72);
     // A jagged partial lower wall stays anchored after the upper tank explodes.
-    const tornWall=new THREE.CylinderGeometry(5.65,5.65,8.2,72,8,true,.12,Math.PI*1.7);
+    const tornWall=new THREE.CylinderGeometry(5.65,5.65,6.1,72,8,true,.12,Math.PI*1.7);
     const edgeVerts=tornWall.getAttribute('position') as THREE.BufferAttribute;
     for(let i=0;i<edgeVerts.count;i++){
       const y=edgeVerts.getY(i);
-      if(y>3.8){edgeVerts.setY(i,y-1.4*hash(i*13));}
+      if(y>2.85){edgeVerts.setY(i,y-.8*hash(i*13));}
     }
     tornWall.computeVertexNormals();
     this.tankRemnant=new THREE.Mesh(tornWall,tankMetal);
-    this.tankRemnant.position.set(0,4.25,0);
+    this.tankRemnant.position.set(0,3.2,0);
     this.tankRemnant.castShadow=true;this.tankRemnant.receiveShadow=true;
     this.tankRemnant.visible=false;this.tank.add(this.tankRemnant);
     this.tank.add(this.tankBands);
@@ -405,9 +405,9 @@ export class World {
       const a=k*Math.PI*2/28;
       box(this.tankBands,[5.68*Math.sin(a),7.5,5.68*Math.cos(a)],[.06,14.85,.07],M.trim);
     }
-    // Twisted, differently sized panels. A few giant cylinder strips read as falling billboards.
-    for(let k=0;k<20;k++){
-      const w=1.4+hash(k*7)*1.9,h=2.1+hash(k*9)*4.1;
+    // Small scattered tears reveal the broken shell without turning it into a dark wall.
+    for(let k=0;k<14;k++){
+      const w=.85+hash(k*7)*1.25,h=1.2+hash(k*9)*2.5;
       const geometry=new THREE.PlaneGeometry(w,h,3,4);
       const verts=geometry.getAttribute('position') as THREE.BufferAttribute;
       for(let j=0;j<verts.count;j++){
@@ -452,11 +452,11 @@ export class World {
       const plank=box(this.aftermath,[x,.17,z],[.24,.22,1.5+hash(i)*2.6],M.wood);
       plank.rotation.y=hash(i*37)*Math.PI;plank.rotation.z=(hash(i*53)-.5)*.2;
     }
-    // Several broader, irregular pools make the aftermath read as a flooded street.
-    for(let i=0;i<12;i++){
-      const x=-3.4+hash(i*37)*6.8,z=-14+hash(i*43)*55;
-      const pool=orb(this.aftermath,[x,.047,z],1.7+hash(i*17)*1.6,M.molasses,28,10);
-      pool.scale.set(1.7+hash(i*29),.023,1.7+hash(i*19));
+    // Shallow, separated syrup pools leave damaged cobblestones visible between them.
+    for(let i=0;i<8;i++){
+      const x=-3.4+hash(i*37)*6.8,z=-19+hash(i*43)*30;
+      const pool=orb(this.aftermath,[x,.047,z],1.2+hash(i*17)*.9,M.molasses,28,10);
+      pool.scale.set(1.1+hash(i*29)*.5,.02,1.2+hash(i*19)*.6);
       pool.rotation.y=hash(i*13)*Math.PI;pool.castShadow=false;
     }
     this.aftermath.visible=false;
@@ -472,8 +472,9 @@ export class World {
     silverRim.rotation.x=Math.PI/2;silverRim.scale.set(1.4,.83,1);
     silverRim.position.set(-1.1,.23,-.3);spoon.add(silverRim);
     const syrup=orb(spoon,[-1.05,.23,-.32],1.08,M.molasses,32,16);syrup.scale.set(1.45,.16,.84);
-    const shaft=cylinder(spoon,.17,5.8,[1.95,.15,-.35],M.brass,16);
-    shaft.rotation.z=-Math.PI/2.5;
+    // Align the handle toward the lens, so it reads as a spoon in portrait framing.
+    const shaft=cylinder(spoon,.16,5.2,[-1.1,.13,2.1],M.brass,16);
+    shaft.rotation.x=Math.PI/2;
     const strandGeo=new THREE.CylinderGeometry(.12,.22,3.6,12);
     this.spoonStream=new THREE.Mesh(strandGeo,M.molasses);this.macro.add(this.spoonStream);
     this.spoonDrop=orb(this.macro,[-2.2,1.1,-2],.23,M.highlight,14,9);
@@ -547,10 +548,15 @@ export class World {
     if(this.paintMask.visible)this.paintMask.scale.set(.3+smooth((f-540)/95)*.7,.5+smooth((f-540)/95),.13);
     this.flood.update(f);
     const panic=shot.id==='hook'||shot.id==='rush'||shot.id==='firehouse'||shot.id==='rupture';
-    this.people.forEach((person,i)=>person.update(f,cam,shot.place==='town'&&
-      !(shot.id==='tank'&&person.home.z>20)&&(
-      shot.id==='hook'||shot.id==='tank'||shot.id==='rupture'||shot.id==='rush'||
-      shot.id==='firehouse'||shot.id==='aftermath'),panic&&i<5));
+    this.people.forEach((person,i)=>{
+      person.update(f,cam,shot.place==='town'&&
+        !(shot.id==='tank'&&person.home.z>20)&&(
+          shot.id==='hook'||shot.id==='tank'||shot.id==='rupture'||shot.id==='rush'||
+          shot.id==='firehouse'||shot.id==='aftermath'),panic&&i<5);
+      if(shot.id==='rush'&&!showRushCharacter(cam.position.z,person.mesh.position.z)){
+        person.mesh.visible=false;person.shadow.visible=false;
+      }
+    });
     const damaged=shot.id==='firehouse'||shot.id==='aftermath';
     const tilt=damaged?smooth((f-1030)/60):0;
     this.firehouse.rotation.z=-.19*tilt;
