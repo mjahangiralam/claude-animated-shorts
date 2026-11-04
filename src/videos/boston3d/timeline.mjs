@@ -15,6 +15,7 @@ export const SHOTS = Object.freeze([
   {id:'aftermath',a:1450,b:1640,place:'town',light:'gold'},
   {id:'blueprint',a:1640,b:1800,place:'blueprint',light:'night'},
 ]);
+export const tankStateAt=(frame)=>({intact:frame<688,remnant:frame>=688});
 export const clamp = (x,a=0,b=1)=>Math.min(b,Math.max(a,x));
 export const smooth = (x)=>{const u=clamp(x);return u*u*(3-2*u);};
 export const shotAt = (frame)=>SHOTS.find(s=>frame>=s.a&&frame<s.b) || SHOTS[SHOTS.length-1];
@@ -34,13 +35,13 @@ export const waveProfileAt=(frame,x)=>{
 };
 const KEYS={
  hook:{pos:[1.2,3.0,21],look:[2,3.2,-6],fov:45,roll:-0.038,drift:[-1,0,-3.7]},
- spoon:{pos:[-.8,8.5,13],look:[-1.8,3.5,-1.8],fov:43,roll:0.02,drift:[0.4,-0.5,-2.1]},
+ spoon:{pos:[-.8,7.1,8.8],look:[-1.8,3.4,-1.8],fov:36,roll:0.02,drift:[0.3,-0.3,-0.8]},
  tank:{pos:[0,4.7,22],look:[9,8,-13],fov:42,roll:-0.026,drift:[-2,1.3,-4.4]},
  leaks:{pos:[20.5,5.8,-5],look:[15.8,4.5,-12.9],fov:31,roll:0.016,drift:[-1.3,0.4,-1.2]},
  paint:{pos:[20.5,5.2,-5],look:[15.8,4.5,-12.9],fov:31,roll:0.016,drift:[-1.4,0,-1.7]},
  rupture:{pos:[1.3,4.3,23],look:[8,7,-11],fov:42,roll:0.024,drift:[-1.2,0.5,-5]},
- rush:{pos:[0,3.1,19],look:[0,3.4,-8],fov:48,roll:-0.023,drift:[-1.5,0.6,-3]},
- firehouse:{pos:[-4.2,5.3,16],look:[-13.9,4.3,-9],fov:40,roll:0.045,drift:[0.6,-0.5,-4]},
+ rush:{pos:[0,3.9,38],look:[0,3.2,16],fov:46,roll:-0.023,drift:[-0.5,0.3,-4.5]},
+ firehouse:{pos:[-4.0,5.3,-0.7],look:[-13.9,5.2,-9],fov:41,roll:0.022,drift:[0,-0.7,-2]},
  physics:{pos:[0.8,9.6,14],look:[0.2,3,-3],fov:42,roll:-0.02,drift:[-0.6,-1,-3]},
  aftermath:{pos:[-1.4,4.1,19],look:[0,2.5,-10],fov:41,roll:-0.015,drift:[2,0.4,-6]},
  blueprint:{pos:[10.5,10,22],look:[0,8,0],fov:38,roll:0,drift:[-1,0,-3]},
