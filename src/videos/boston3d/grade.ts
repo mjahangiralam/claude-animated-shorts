@@ -170,7 +170,8 @@ export const GRADES: Record<"day" | "golden", GradeParams> = { day: GRADE_DAY2, 
 /** One strength (0..1, the effect's `amount`) per preset, set against the NEW world (bridge_world, 2026-10-31): full-strength
  *  presets overshot (day median Y' .59-.67 vs target .571, golden .58 vs .52); day 0.65 / golden 0.45 land at
  *  .54-.62 / ~.52. Re-fit the presets (grade.md 5.C) after the merge and raise these again. */
-export const GRADE_STRENGTH: Record<"day" | "golden", number> = { day: 1, golden: 1 };
+// The newer Bridge-style world has its own saturation and contrast; use a restrained finishing grade.
+export const GRADE_STRENGTH: Record<"day" | "golden", number> = { day: 0.5, golden: 0.5 };
 /** Apply the preset of a light to the effect (only touches uniforms when the light changes). */
 export function gradeFor(fx: GradeEffect, light: "day" | "golden") {
   const tag = fx as unknown as { _light?: string };
