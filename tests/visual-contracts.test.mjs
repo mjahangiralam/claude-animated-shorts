@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import * as timeline from '../src/videos/boston3d/timeline.mjs';
 
 const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
@@ -63,4 +64,25 @@ test('runners too close to the flood camera are hidden to avoid giant cutouts',(
   assert.equal(typeof timeline.showRushCharacter,'function');
   assert.equal(timeline.showRushCharacter(35,33),false);
   assert.equal(timeline.showRushCharacter(35,15),true);
+});
+
+const sceneSource=readFileSync(new URL('../src/videos/boston3d/world.ts',import.meta.url),'utf8');
+
+test('Boston retains the Bridge short painted-lighting pipeline',()=>{
+  assert.match(sceneSource,/import \{twoTone, TONE, CHAR, untone\} from/);
+  assert.match(sceneSource,/twoTone\(new THREE\.MeshLambertMaterial/);
+  assert.match(sceneSource,/TONE\.uShadeCol\.value\.set/);
+  assert.match(sceneSource,/TONE\.uSat\.value=/);
+});
+
+test('characters and clouds share the Bridge look instead of flat cutouts',()=>{
+  assert.match(sceneSource,/cardShade\(new THREE\.MeshLambertMaterial/);
+  assert.match(sceneSource,/cloudHD\(i,look\.cloud\)/);
+  assert.match(sceneSource,/CHAR\.uCharTint\.value\.set/);
+});
+
+test('molasses is a breaking liquid crest with animated droplets',()=>{
+  assert.match(sceneSource,/this\.foam\.length/);
+  assert.match(sceneSource,/this\.droplets\.length/);
+  assert.match(sceneSource,/Burnt-sienna undercut/);
 });
