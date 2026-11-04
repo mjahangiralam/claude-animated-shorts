@@ -1,70 +1,80 @@
-# Boston Molasses Flood — first Mac render
+# Boston Molasses Flood — cinematic 3D upgrade (macOS)
 
-This branch adds a **runnable 60-second Remotion pilot**, designed for macOS Apple Silicon. It is an original illustrated 2.5D animation with animated streets, a storage tank, cartoon people, and a procedural molasses wave. It is a first preview, not the final 3D production.
+The **BostonMolasses** composition is now a procedurally modeled Three.js / Remotion short. It replaces the earlier 2.5D SVG pilot while preserving the previous **BostonMolasses2DPilot** in Studio.
 
-## Requirements
+Features: a 1919-inspired painted town, modeled buildings, shop fronts, elevated railway, three-dimensional riveted tank, separate tearing wall sections, mesh-based moving flood with ripples and highlights, cast/ground shadows, original cartoon character drawings, animated camera, ink outlines, background depth blur, filmic colour, original music and effects, and scene-aligned narration.
 
-- macOS 15 or newer (you have 27.2)
-- Node.js / npm (you have Node 22)
-- FFmpeg (you have FFmpeg 8.1)
-- At least 30 GiB of free storage recommended for preview and render
-- Internet access on first npm install and browser download
+## On your Apple Silicon Mac
 
-## Get this branch on your Mac
+Your machine has Node 22, npm and FFmpeg 8.1 installed.
 
-For a fresh copy:
+In the folder you cloned earlier:
 
-```bash
-cd "$HOME/Documents/GitHub"
-git clone --branch feature/boston-molasses-short https://github.com/mjahangiralam/claude-animated-shorts.git AnimatedShorts-Mac
-cd AnimatedShorts-Mac
+~~~bash
+cd "$HOME/Documents/GitHub/AnimatedShorts-Mac"
+git status
+git pull --ff-only origin feature/boston-molasses-short
 npm install
-```
-
-Do not run `git clean` or `git reset` in your existing CanadianSpellingBee repository. This is an unrelated new folder.
-
-## Preview interactively
-
-```bash
+npm test
+npm run typecheck
 npm run studio
-```
+~~~
 
-Remotion Studio opens in your browser. Select `BostonMolasses`. You can scrub through 60 seconds and inspect the frames.
+Important: if git status shows modifications you want to keep, **do not force reset or clean**. Share the output so we can work around your changes.
 
-## Render a low-resolution pilot with Mac narration
+In Remotion Studio select **BostonMolasses**, not **BostonMolasses2DPilot**. Check frames at approximately 0, 200, 450, 720, 850, 1080, 1320, 1530 and 1720.
 
-```bash
+## Better (neural) narration, optional but recommended
+
+The upgraded render uses an online neural voice automatically if edge-tts is installed. The service requires Internet access; availability and voice choice can vary. No API key is needed for the community package. Without it, the pipeline falls back to macOS Samantha.
+
+Install it in an isolated environment (no changes to system Python):
+
+~~~bash
+python3 -m venv .venv
+.venv/bin/python -m pip install edge-tts
+~~~
+
+The selected default voice is en-US-AndrewNeural. It generates individual clips paced to the shot schedule. For the original macOS voice instead:
+
+~~~bash
+SHORT_TTS=mac bash scripts/render-mac.sh preview
+~~~
+
+To use your own recording, set SHORT_VOICE_FILE to its path; the script will pad/trim it to 60 seconds.
+
+## Render
+
+After stopping Remotion Studio with Ctrl+C:
+
+~~~bash
 bash scripts/render-mac.sh preview
-```
+~~~
 
-Output: `out/boston-preview-with-voice.mp4` (540 × 960, 30 fps).
+The 540 × 960 preview will be saved at out/boston-preview-with-voice.mp4. It includes narration, synthesized original cinematic music and sound effects.
 
-## Render full HD after approving the pilot
+After inspecting the preview:
 
-```bash
+~~~bash
 bash scripts/render-mac.sh full
-```
+~~~
 
-Output: `out/boston-final.mp4` (1080 × 1920, 30 fps).
+The 1080 × 1920 output is out/boston-final.mp4.
 
-The script generates narration using the built-in macOS Samantha voice, then adds it to the video with FFmpeg. No Claude, API key, or paid TTS service is required. The narration's exact pacing and audio quality need a review before final publication.
+If the render runs out of disk, use df -h . first; do not delete files without inspecting the exact targets. Our renderer uses procedural textures and ships no external 1.3 GB model pack.
 
-## Current limitations
+## Limitations / quality control
 
-- This first pilot uses SVG-based depth and character cards, not a fully rigged Three.js world.
-- The narration is a system voice and the exact word-to-frame synchronization is pending.
-- Music and authored sound effects are not yet in this pilot.
-- It does **not** ship or redistribute the repository's reference frames.
-- The serious historical human toll should be depicted respectfully.
+- **The 3D code is committed but has not yet completed a verified Mac video render.** Run type checking and the preview before calling it finished.
+- Characters are camera-facing painted 2D figures inside a 3D world, matching the reference's 2D-in-3D approach; they are not skeletal 3D humanoids.
+- The molasses surface is a procedural animated mesh, not a fluid simulation.
+- Review the half-resolution preview for framing, motion and audio before a costly full render.
+- Example reference frames in the fork are for private style study and are not reproduced.
+- The human toll is treated seriously; there are no graphic injuries or slapstick gags.
 
-## Sources
+The MIT-licensed bridge example supplies the toon, ink, lensblur and grade modules. The Boston town, tank, liquid, scenes, narration, and score are original work.
+
+## Factual sources
 
 - https://www.boston.gov/news/100-years-ago-today-molasses-crashes-through-bostons-north-end
 - https://www.sec.state.ma.us/divisions/state-house-tours/did-you-know/Molasses-Flood.htm
-
-## Next work
-
-1. Inspect rendered pilot for layout, timing, and completeness.
-2. Improve foreground character motion and 3D camera/parallax.
-3. Replace the system narration with an approved voice if desired.
-4. Add original music, SFX, and per-shot QA.
