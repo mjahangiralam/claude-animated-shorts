@@ -6,7 +6,7 @@ import {twoTone, TONE, CHAR, untone} from '../../../templates/bridge/shade';
 import {cardShade} from '../../../templates/bridge/cardshade';
 import {LIGHTS, LOOK} from '../../../templates/bridge/lights';
 import {cloudHD} from '../../../templates/bridge/paint';
-import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, tankLiquidLevelAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, TANK_BREACH, fragmentFlightAt, outflowSheetPointAt, outflowCrossSectionAt, spoonBowlHeightAt, spoonDripAt, waveFoldAt, characterStreetPositionAt, characterFloodResponseAt, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, tankLiquidLevelAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, openingLensCoverageAt, TANK_BREACH, fragmentFlightAt, outflowSheetPointAt, outflowCrossSectionAt, spoonBowlHeightAt, spoonDripAt, waveFoldAt, characterStreetPositionAt, characterFloodResponseAt, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -421,7 +421,18 @@ export class World {
   private sky:THREE.Mesh;
   private clouds:THREE.Mesh[]=[];
   private baseFog=new THREE.Fog('#b8d0ec',32,160);
+  private lensMolasses:THREE.Mesh;
   constructor(){
+    // A camera-facing syrup film finishes the introduction as the advancing
+    // wave physically meets the lens. It disappears at the spoon cut.
+    this.lensMolasses=new THREE.Mesh(
+      new THREE.PlaneGeometry(2,2),
+      new THREE.MeshBasicMaterial({color:'#44251b',transparent:true,
+        opacity:0,depthTest:false,depthWrite:false,side:THREE.DoubleSide})
+    );
+    this.lensMolasses.renderOrder=1000;
+    this.lensMolasses.frustumCulled=false;
+    this.root.add(this.lensMolasses);
     this.sky=skyDome();this.root.add(this.sky);
     this.hemi=new THREE.HemisphereLight('#cfe6ff','#64527f',.55);
     this.root.add(this.hemi);
@@ -711,6 +722,14 @@ export class World {
     this.firehouseDebris.visible=shot.id==='firehouse'||shot.id==='aftermath';
     cam.position.set(info.pos[0],info.pos[1],info.pos[2]);cam.fov=info.fov;
     cam.lookAt(new THREE.Vector3(info.look[0],info.look[1],info.look[2]));cam.rotateZ(info.roll);cam.updateProjectionMatrix();
+    const lensCoverage=openingLensCoverageAt(f);
+    this.lensMolasses.visible=lensCoverage>0;
+    if(this.lensMolasses.visible){
+      (this.lensMolasses.material as THREE.MeshBasicMaterial).opacity=lensCoverage;
+      this.lensMolasses.position.copy(cam.position)
+        .add(new THREE.Vector3(0,0,-.5).applyQuaternion(cam.quaternion));
+      this.lensMolasses.quaternion.copy(cam.quaternion);
+    }
     scene.fog=this.baseFog;scene.background=null;
     const golden=shot.light==='gold';
     const preset=golden?LIGHTS.golden:LIGHTS.day;
