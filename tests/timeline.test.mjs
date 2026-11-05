@@ -29,15 +29,21 @@ test('the cold-open shows the broken tank while the earlier history still shows 
   assert.equal(rupture.remnant,true,'real rupture must still expose the tank remnant');
 });
 
-test('the opening wave and its thick trailing body fully pass the camera before the cut',()=>{
-  const middle=78,end=112;
-  const cameraMiddle=physics.cameraAt(middle).pos[2];
-  const cameraEnd=physics.cameraAt(end).pos[2];
-  assert.ok(physics.floodFrontAt(middle)>cameraMiddle,
-    'opening crest never reaches the camera');
-  const trailingEdge=physics.floodFrontAt(end)-physics.floodSpreadAt(end).trail;
-  assert.ok(trailingEdge>cameraEnd+2,
-    'opening cuts while the thick molasses wake still surrounds the camera');
+test('the opening cuts at the moment the molasses fully engulfs the camera',()=>{
+  const gap=(frame)=>{
+    const cam=physics.cameraAt(frame).pos;
+    return physics.waveProfileAt(frame,cam[0]).front-cam[2];
+  };
+  assert.ok(gap(96)<-3,'the syrup arrives far too early in the introduction');
+  assert.ok(gap(108)<-1,'the lens is engulfed long before the scene changes');
+  assert.ok(Math.abs(gap(114))<.65,'the leading molasses crest misses the lens at the cut');
+  assert.equal(physics.openingLensCoverageAt(108),0,'the lens splashes before the wave arrives');
+  assert.ok(physics.openingLensCoverageAt(112)>.3,'lens coverage has not started by the last few frames');
+  assert.equal(physics.openingLensCoverageAt(114),1,'opening is not fully brown before the cut');
+  assert.equal(physics.openingLensCoverageAt(115),0,'lens covering leaks into the spoon shot');
+  const cam=physics.cameraAt(114).pos;
+  const trailingEdge=physics.waveProfileAt(114,cam[0]).front-physics.floodSpreadAt(114).trail;
+  assert.ok(trailingEdge<cam[2]-20,'the thick syrup wake disappears as the crest reaches the camera');
 });
 
 test('the flood front advances toward the camera after the rupture', () => {
