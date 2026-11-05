@@ -184,6 +184,12 @@ export const waveFoldAt=(frame,x,fraction)=>{
 // path deterministic makes collision reactions stable across random frame seeks.
 export const characterStreetPositionAt=(frame,index,home)=>{
   const seed=index+5;
+  // The cold-open has its own shorter escape choreography; collision checks
+  // must follow those exact positions, not the later rupture-shot run path.
+  if(frame<115&&index<5)return {
+    x:home.x+.12*Math.sin(frame*.12+seed),
+    z:home.z+Math.min(4,frame*.03)
+  };
   const running=index<5&&frame>682&&frame<1170;
   return {
     x:home.x+(running?Math.min(9,(frame-682)*.037)*(seed%2?-1:1):
@@ -197,6 +203,20 @@ export const characterStreetPositionAt=(frame,index,home)=>{
 // person never pops back into view when the water moves farther downstreet.
 export const characterFloodResponseAt=(frame,index,home)=>{
   const safe={hit:false,fall:0,sweepZ:0,submerged:false};
+  if(frame<115){
+    let contact=-1;
+    for(let f=0;f<=frame;f++){
+      const p=characterStreetPositionAt(f,index,home);
+      const spread=floodSpreadAt(f);
+      const withinStreet=p.x>=spread.left-.5&&p.x<=spread.right+.5;
+      const overtaken=waveProfileAt(f,p.x).front>=p.z-.5;
+      if(withinStreet&&overtaken){contact=f;break;}
+    }
+    if(contact<0)return safe;
+    const age=frame-contact;
+    return {hit:true,fall:smooth(age/14),sweepZ:Math.min(6.5,age*.22),
+      submerged:age>=26};
+  }
   if(frame<688)return safe;
   let contact=-1;
   for(let f=688;f<=Math.min(frame,1030);f+=2){
