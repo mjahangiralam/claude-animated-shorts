@@ -225,3 +225,33 @@ test('debris exposes a finite impact age for a brief visible landing splash',()=
   assert.ok(landed.impactAge>=0,'street debris is counted as landed before impact');
   assert.ok(physics.fragmentFlightAt(688,0).impactAge<0,'impact begins at the explosion');
 });
+
+test('a resident overtaken by the molasses is knocked down and swept under',()=>{
+  assert.equal(typeof physics.characterFloodResponseAt,'function');
+  const home={x:-2.8,z:-12};
+  const before=physics.characterFloodResponseAt(680,2,home);
+  const struck=physics.characterFloodResponseAt(790,2,home);
+  const submerged=physics.characterFloodResponseAt(850,2,home);
+  assert.equal(before.hit,false,'character is struck before the tank bursts');
+  assert.equal(struck.hit,true,'resident remains untouched after the wave reaches him');
+  assert.ok(struck.fall>.05,'resident stays upright instead of falling');
+  assert.ok(struck.sweepZ>0,'resident is not carried down the street');
+  assert.equal(submerged.submerged,true,'resident remains visible well after being overtaken');
+});
+
+test('a runner ahead of the wave is not hit prematurely',()=>{
+  const home={x:-3,z:13};
+  for(const frame of [700,760,820,870]){
+    const response=physics.characterFloodResponseAt(frame,0,home);
+    assert.equal(response.hit,false,`safe runner was hit at frame ${frame}`);
+    assert.equal(response.submerged,false);
+  }
+});
+
+test('a person already behind the flood is not allowed to stand throughout the rush',()=>{
+  const home={x:1.4,z:-25};
+  const struck=physics.characterFloodResponseAt(800,5,home);
+  const later=physics.characterFloodResponseAt(900,5,home);
+  assert.equal(struck.hit,true,'resident in flooded area remains unaffected');
+  assert.equal(later.submerged,true,'resident in flooded area is still standing late in the rush');
+});
