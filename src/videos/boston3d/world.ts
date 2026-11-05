@@ -227,8 +227,8 @@ class Toon {
     const t=hookEscape?f/12:panic?Math.max(0,(f-682)/30):f/30;
     const phase=(t*1.35+this.seed*.14)%1;
     const path=characterStreetPositionAt(f,this.seed-5,{x:this.home.x,z:this.home.z});
-    const x=hookEscape?this.home.x+.12*Math.sin(f*.12+this.seed):path.x;
-    const z=hookEscape?this.home.z+Math.min(4,f*.03):path.z;
+    const x=path.x;
+    const z=path.z;
     this.mesh.position.set(x,1.77+(run?Math.sin(f*.18)*.08:0),z);
     this.shadow.position.set(x,.038,z);
     this.mesh.rotation.y=Math.atan2(cam.position.x-x,cam.position.z-z);
