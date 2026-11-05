@@ -15,7 +15,12 @@ export const SHOTS = Object.freeze([
   {id:'aftermath',a:1450,b:1640,place:'town',light:'gold'},
   {id:'blueprint',a:1640,b:1800,place:'blueprint',light:'night'},
 ]);
-export const tankStateAt=(frame)=>({intact:frame<688,remnant:frame>=688});
+// The opening is a flash-forward to the disaster; the historical tank scene
+// later returns to the intact vessel before the chronological rupture.
+export const tankStateAt=(frame)=>({
+  intact:frame>=115&&frame<688,
+  remnant:frame<115||frame>=688
+});
 // Camera is intentionally placed ahead of the wave; very near sprites overwhelm it.
 export const showRushCharacter=(cameraZ,characterZ)=>characterZ<cameraZ-6;
 export const clamp = (x,a=0,b=1)=>Math.min(b,Math.max(a,x));
@@ -145,7 +150,12 @@ export const TANK_BREACH=Object.freeze({x:7.3,z:-12});
 // goes into spreading sideways and viscous loss as the syrup fans out.
 const STREET_PROJECTION=.58;
 export const floodSpreadAt=(frame)=>{
-  if(frame<115)return {left:-7.6,right:7.6,trail:37};
+  if(frame<115){
+    // Once the rolling crest passes the opening camera, its heavy wake moves
+    // past as well; otherwise the cut happens inside a full-screen brown pool.
+    const clearing=smooth((frame-61)/23);
+    return {left:-7.6,right:7.6,trail:37-30*clearing};
+  }
   const travel=surgeDistanceAt(frame)*STREET_PROJECTION;
   const centerX=TANK_BREACH.x*(1-smooth(travel/19));
   const halfWidth=Math.min(7.8,.48+travel*.44);
