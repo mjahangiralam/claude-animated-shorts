@@ -746,6 +746,7 @@ export class World {
       if(cloudMat.map!==targetMap){cloudMat.map=targetMap;cloudMat.needsUpdate=true;}
     }
     const tankState=tankStateAt(f);
+    const opening=shot.id==='hook';
     const burst=!tankState.intact;
     this.tankShell.visible=tankState.intact;
     this.tankRemnant.visible=tankState.remnant;
@@ -758,7 +759,9 @@ export class World {
     this.tankBands.visible=tankState.intact;
     this.brokenBands.visible=tankState.remnant;
     for(let i=0;i<this.shellFragments.length;i++){
-      const piece=this.shellFragments[i],flight=fragmentFlightAt(f,i);
+      // The teaser starts after the explosion: debris has already landed.
+      // Reusing f=0 flight positions would leave steel frozen in the air.
+      const piece=this.shellFragments[i],flight=fragmentFlightAt(opening?830:f,i);
       piece.visible=burst&&f<1200;
       piece.position.set(flight.x,flight.y,flight.z);
       // Once a plate hits the road it rests flat, instead of hovering or
@@ -766,7 +769,7 @@ export class World {
       piece.rotation.set(flight.landed?Math.PI/2+(hash(i*7)-.5)*.12:flight.rx,
         flight.ry,flight.landed?(hash(i*11)-.5)*.13:flight.rz);
       const impact=this.impacts[i],age=flight.impactAge;
-      impact.visible=burst&&age>=0&&age<.5 &&
+      impact.visible=!opening&&burst&&age>=0&&age<.5 &&
         Math.abs(this.tank.position.x+flight.x)<8;
       if(impact.visible){
         impact.position.set(this.tank.position.x+flight.x,.12,this.tank.position.z+flight.z);
@@ -774,7 +777,9 @@ export class World {
         (impact.material as THREE.MeshBasicMaterial).opacity=.65*(1-age/.5);
       }
     }
-    this.outflow.visible=burst&&f<1030;
+    // The opening is aftermath footage, not a second live rupture: do not
+    // restart the later tank jet or show a detached artificial stream.
+    this.outflow.visible=!opening&&burst&&f<1030;
     if(this.outflow.visible){
       const pos=this.outflowGeom.getAttribute('position') as THREE.BufferAttribute;
       const nx=16,nz=30;
