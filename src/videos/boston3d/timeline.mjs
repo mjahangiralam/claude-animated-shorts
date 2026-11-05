@@ -180,6 +180,37 @@ export const waveFoldAt=(frame,x,fraction)=>{
     sag:(.21+.17*energy)*curl*curl
   };
 };
+// The same fleeing path used to place each townsfolk billboard. Keeping the
+// path deterministic makes collision reactions stable across random frame seeks.
+export const characterStreetPositionAt=(frame,index,home)=>{
+  const seed=index+5;
+  const running=index<5&&frame>682&&frame<1170;
+  return {
+    x:home.x+(running?Math.min(9,(frame-682)*.037)*(seed%2?-1:1):
+      .25*Math.sin(frame*.013+seed)),
+    z:home.z+(running?Math.min(35,(frame-682)*.11):
+      .14*Math.cos(frame*.015+seed))
+  };
+};
+// A resident who has been overtaken cannot stay upright behind the crest.
+// Search the past wave contact, not only the current footprint, so a swept
+// person never pops back into view when the water moves farther downstreet.
+export const characterFloodResponseAt=(frame,index,home)=>{
+  const safe={hit:false,fall:0,sweepZ:0,submerged:false};
+  if(frame<688)return safe;
+  let contact=-1;
+  for(let f=688;f<=Math.min(frame,1030);f+=2){
+    const p=characterStreetPositionAt(f,index,home);
+    const spread=floodSpreadAt(f);
+    const reachesSide=p.x>=spread.left-1.8&&p.x<=spread.right+1.8;
+    const reachesDepth=waveProfileAt(f,p.x).front>=p.z-.5;
+    if(reachesSide&&reachesDepth){contact=f;break;}
+  }
+  if(contact<0)return safe;
+  const age=frame-contact;
+  return {hit:true,fall:smooth(age/17),sweepZ:Math.min(7,age*.065),
+    submerged:age>=34};
+};
 const KEYS={
  hook:{pos:[1.2,3.0,21],look:[2,3.2,-6],fov:45,roll:-0.038,drift:[-1,0,-3.7]},
  spoon:{pos:[-.8,8.5,9],look:[-1.8,3.4,-1],fov:38,roll:0.02,drift:[0.3,-0.2,-0.8]},
