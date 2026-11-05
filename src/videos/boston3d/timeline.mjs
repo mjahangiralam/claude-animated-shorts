@@ -150,12 +150,9 @@ export const TANK_BREACH=Object.freeze({x:7.3,z:-12});
 // goes into spreading sideways and viscous loss as the syrup fans out.
 const STREET_PROJECTION=.58;
 export const floodSpreadAt=(frame)=>{
-  if(frame<115){
-    // Once the rolling crest passes the opening camera, its heavy wake moves
-    // past as well; otherwise the cut happens inside a full-screen brown pool.
-    const clearing=smooth((frame-61)/23);
-    return {left:-7.6,right:7.6,trail:37-30*clearing};
-  }
+  // The cold-open wave stays thick while it advances into the lens.
+  // Cutting to the spoon happens on the frame after full engulfment.
+  if(frame<115)return {left:-7.6,right:7.6,trail:37};
   const travel=surgeDistanceAt(frame)*STREET_PROJECTION;
   const centerX=TANK_BREACH.x*(1-smooth(travel/19));
   const halfWidth=Math.min(7.8,.48+travel*.44);
@@ -242,7 +239,7 @@ export const characterFloodResponseAt=(frame,index,home)=>{
     submerged:age>=34};
 };
 const KEYS={
- hook:{pos:[1.2,3.0,21],look:[2,3.2,-6],fov:45,roll:-0.038,drift:[-1,0,-3.7]},
+ hook:{pos:[1.2,3.0,21],look:[2,3.2,-6],fov:45,roll:-0.038,drift:[-1,-0.45,13.2]},
  spoon:{pos:[-.8,8.5,9],look:[-1.8,3.4,-1],fov:38,roll:0.02,drift:[0.3,-0.2,-0.8]},
  tank:{pos:[0,4.7,22],look:[9,8,-13],fov:42,roll:-0.026,drift:[-2,1.3,-4.4]},
  leaks:{pos:[20.5,5.8,-5],look:[15.8,4.5,-12.9],fov:31,roll:0.016,drift:[-1.3,0.4,-1.2]},
@@ -254,6 +251,10 @@ const KEYS={
  aftermath:{pos:[-1.4,4.1,19],look:[0,2.5,-10],fov:41,roll:-0.015,drift:[2,0.4,-6]},
  blueprint:{pos:[10.5,10,22],look:[0,8,0],fov:38,roll:0,drift:[-1,0,-3]},
 };
+// Only the last five frames of the cold-open acquire a syrup-covered lens.
+// The view is fully occluded at frame 114; frame 115 is the clean spoon cut.
+export const openingLensCoverageAt=(frame)=>
+  frame>=0&&frame<115?smooth((frame-109)/5):0;
 export const cameraAt=(frame)=>{
  const s=shotAt(frame),p=shotProgress(frame),k=KEYS[s.id],u=smooth(p);
  const pos=k.pos.map((v,i)=>v+k.drift[i]*u);
