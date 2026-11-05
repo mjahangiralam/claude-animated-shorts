@@ -6,7 +6,7 @@ import {twoTone, TONE, CHAR, untone} from '../../../templates/bridge/shade';
 import {cardShade} from '../../../templates/bridge/cardshade';
 import {LIGHTS, LOOK} from '../../../templates/bridge/lights';
 import {cloudHD} from '../../../templates/bridge/paint';
-import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, tankLiquidLevelAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, TANK_BREACH, fragmentFlightAt, outflowSheetPointAt, outflowCrossSectionAt, spoonBowlHeightAt, spoonDripAt, waveFoldAt, smooth, clamp} from './timeline.mjs';
+import {cameraAt, waveProfileAt, shotAt, shotProgress, tankStateAt, tankLiquidLevelAt, showRushCharacter, surgeSpeedAt, jetParticleAt, floodSpreadAt, TANK_BREACH, fragmentFlightAt, outflowSheetPointAt, outflowCrossSectionAt, spoonBowlHeightAt, spoonDripAt, waveFoldAt, characterStreetPositionAt, characterFloodResponseAt, smooth, clamp} from './timeline.mjs';
 
 // All scenery and effects are original, generated from geometry and Canvas2D.
 // No copied reference frames, stock 3D models, or external texture downloads.
@@ -226,11 +226,13 @@ class Toon {
     const run=hookEscape||(panic&&f>682&&f<1170);
     const t=hookEscape?f/12:panic?Math.max(0,(f-682)/30):f/30;
     const phase=(t*1.35+this.seed*.14)%1;
-    const x=this.home.x+(hookEscape?.12*Math.sin(f*.12+this.seed):run?Math.min(9,(f-682)*.037)*((this.seed%2)?-1:1):.25*Math.sin(f*.013+this.seed));
-    const z=this.home.z+(hookEscape?Math.min(4,f*.03):run?Math.min(35,(f-682)*.11):.14*Math.cos(f*.015+this.seed));
+    const path=characterStreetPositionAt(f,this.seed-5,{x:this.home.x,z:this.home.z});
+    const x=hookEscape?this.home.x+.12*Math.sin(f*.12+this.seed):path.x;
+    const z=hookEscape?this.home.z+Math.min(4,f*.03):path.z;
     this.mesh.position.set(x,1.77+(run?Math.sin(f*.18)*.08:0),z);
     this.shadow.position.set(x,.038,z);
     this.mesh.rotation.y=Math.atan2(cam.position.x-x,cam.position.z-z);
+    this.mesh.rotation.z=0;
     if(this.last!==step){
       this.last=step;
       const g=this.cv.getContext('2d')!;
@@ -815,6 +817,19 @@ export class World {
         !(shot.id==='tank'&&person.home.z>20)&&(
           shot.id==='hook'||shot.id==='tank'||shot.id==='rupture'||shot.id==='rush'||
           shot.id==='firehouse'||shot.id==='aftermath'),panic&&i<5);
+      const impact=characterFloodResponseAt(f,i,{x:person.home.x,z:person.home.z});
+      if(impact.hit&&person.mesh.visible){
+        // The rushing molasses catches this person: a short sideways fall,
+        // then the sprite disappears beneath the opaque advancing crest.
+        const sideways=i%2===0?-1:1;
+        person.mesh.position.x+=sideways*.34*impact.fall;
+        person.mesh.position.z+=impact.sweepZ;
+        person.mesh.position.y-=1.35*impact.fall;
+        person.mesh.rotation.z=sideways*1.25*impact.fall;
+        person.shadow.position.x+=sideways*.34*impact.fall;
+        person.shadow.position.z+=impact.sweepZ;
+        if(impact.submerged){person.mesh.visible=false;person.shadow.visible=false;}
+      }
       if((shot.id==='rush'||shot.id==='rupture')&&!showRushCharacter(cam.position.z,person.mesh.position.z)){
         person.mesh.visible=false;person.shadow.visible=false;
       }
