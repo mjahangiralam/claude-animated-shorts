@@ -20,6 +20,26 @@ test('the opening gets a flood, the ending gets a blueprint', () => {
   assert.equal(shotAt(1799).id,'blueprint');
 });
 
+test('the cold-open shows the broken tank while the earlier history still shows it intact',()=>{
+  const intro=physics.tankStateAt(20),historical=physics.tankStateAt(300);
+  const rupture=physics.tankStateAt(750);
+  assert.equal(intro.intact,false,'intro shows a complete tank after the flood already erupted');
+  assert.equal(intro.remnant,true,'intro has no visibly torn tank shell');
+  assert.equal(historical.intact,true,'historical tank shot must precede the disaster');
+  assert.equal(rupture.remnant,true,'real rupture must still expose the tank remnant');
+});
+
+test('the opening wave and its thick trailing body fully pass the camera before the cut',()=>{
+  const middle=78,end=112;
+  const cameraMiddle=physics.cameraAt(middle).pos[2];
+  const cameraEnd=physics.cameraAt(end).pos[2];
+  assert.ok(physics.floodFrontAt(middle)>cameraMiddle,
+    'opening crest never reaches the camera');
+  const trailingEdge=physics.floodFrontAt(end)-physics.floodSpreadAt(end).trail;
+  assert.ok(trailingEdge>cameraEnd+2,
+    'opening cuts while the thick molasses wake still surrounds the camera');
+});
+
 test('the flood front advances toward the camera after the rupture', () => {
   assert.ok(floodFrontAt(770) < floodFrontAt(890));
   assert.ok(floodFrontAt(890) < floodFrontAt(980));
