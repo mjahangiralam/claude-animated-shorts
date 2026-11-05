@@ -255,3 +255,23 @@ test('a person already behind the flood is not allowed to stand throughout the r
   assert.equal(struck.hit,true,'resident in flooded area remains unaffected');
   assert.equal(later.submerged,true,'resident in flooded area is still standing late in the rush');
 });
+
+test('the opening wave knocks down and sweeps away the foreground resident',()=>{
+  const home={x:-3,z:13};
+  const before=physics.characterFloodResponseAt(20,0,home);
+  const struck=physics.characterFloodResponseAt(78,0,home);
+  const gone=physics.characterFloodResponseAt(112,0,home);
+  assert.equal(before.hit,false,'opening resident is hit before the wave reaches her');
+  assert.equal(struck.hit,true,'opening resident stays upright inside the wave');
+  assert.ok(struck.fall>.2,'opening resident does not visibly fall');
+  assert.ok(struck.sweepZ>1,'opening resident is not swept down the street');
+  assert.equal(gone.submerged,true,'opening resident remains visible long after being struck');
+});
+
+test('the cold-open wave does not knock over people still ahead of it',()=>{
+  const farAhead={x:0,z:34};
+  for(const frame of [5,35,70,90]){
+    const response=physics.characterFloodResponseAt(frame,6,farAhead);
+    assert.equal(response.hit,false,`far-ahead resident incorrectly hit in opening frame ${frame}`);
+  }
+});
